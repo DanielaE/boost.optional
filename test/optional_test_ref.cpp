@@ -113,7 +113,6 @@ void test_basics( T const* )
   T c(10);
 
   T& aref = a ;
-  T& bref = b ;
 
   // Default construction.
   // 'def' state is Uninitialized.
