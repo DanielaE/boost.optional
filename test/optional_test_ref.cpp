@@ -313,7 +313,7 @@ void test_arrow( T const* )
   
   oa->V() = 4321 ;
   
-  BOOST_CHECK ( a.V() = 4321 ) ;
+  BOOST_CHECK ( a.V() == 4321 ) ;
 }
 
 void test_with_builtin_types()
