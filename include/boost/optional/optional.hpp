@@ -62,6 +62,13 @@
 #ifdef BOOST_OPTIONAL_CONFIG_USE_OLD_IMPLEMENTATION_OF_OPTIONAL
 #include <boost/optional/detail/old_optional_implementation.hpp>
 #else
+
+#if defined(BOOST_MSVC)
+# pragma warning(push)
+# pragma warning(disable: 4244) // narrowing conversion
+# pragma warning(disable: 4702) // unreachable code
+#endif
+
 namespace boost {
   
 namespace optional_ns {
@@ -1486,5 +1493,9 @@ operator<<(std::basic_ostream<CharType, CharTrait>& os, optional_detail::optiona
 
 #include <boost/optional/detail/optional_relops.hpp>
 #include <boost/optional/detail/optional_swap.hpp>
+
+#ifdef BOOST_MSVC
+# pragma warning(pop)
+#endif
 
 #endif // header guard
