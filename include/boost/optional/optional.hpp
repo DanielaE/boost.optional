@@ -102,6 +102,10 @@ namespace boost_optional_detail
   }
 }
 
+#if defined(BOOST_MSVC)
+# pragma warning(push)
+# pragma warning(disable: 4244) // narrowing conversion
+#endif
 
 namespace boost {
 
@@ -1508,5 +1512,9 @@ template<class T> inline void swap ( optional<T>& x, optional<T>& y )
 }
 
 } // namespace boost
+
+#ifdef BOOST_MSVC
+# pragma warning(pop)
+#endif
 
 #endif
