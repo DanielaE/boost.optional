@@ -121,6 +121,8 @@ public:
     
 #ifndef BOOST_OPTIONAL_DETAIL_NO_RVALUE_REFERENCES   
  
+    optional(T&& /* rhs */) BOOST_NOEXCEPT { detail::prevent_binding_rvalue<T&&>(); }
+    
     template <class R>
         optional(R&& r, BOOST_DEDUCED_TYPENAME boost::enable_if<detail::is_no_optional<R> >::type* = 0) BOOST_NOEXCEPT
         : ptr_(boost::addressof(r)) { detail::prevent_binding_rvalue<R>(); }
