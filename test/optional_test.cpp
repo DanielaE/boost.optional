@@ -824,8 +824,8 @@ void test_arrow( T const* )
 
   oa->V() = 4321 ;
 
-  BOOST_TEST (     a.V() = 1234 ) ;
-  BOOST_TEST ( (*oa).V() = 4321 ) ;
+  BOOST_TEST ( (    a.V() = 1234) != 0 ) ;
+  BOOST_TEST ( ((*oa).V() = 4321) != 0) ;
 }
 
 void test_with_builtin_types()
