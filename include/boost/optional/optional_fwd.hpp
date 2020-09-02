@@ -16,8 +16,6 @@
 #ifndef BOOST_OPTIONAL_OPTIONAL_FWD_FLC_19NOV2002_HPP
 #define BOOST_OPTIONAL_OPTIONAL_FWD_FLC_19NOV2002_HPP
 
-#include <boost/config.hpp>
-
 namespace boost {
 
 template<class T> class optional ;
@@ -27,13 +25,9 @@ template<class T> void swap ( optional<T>& , optional<T>& ) ;
 
 template<class T> struct optional_swap_should_use_default_constructor ;
 
-#ifndef BOOST_OPTIONAL_CONFIG_DONT_SPECIALIZE_OPTIONAL_REFS
-
 template<class T> class optional<T&> ;
 
-template<class T> void swap ( optional<T&>& , optional<T&>& ) BOOST_NOEXCEPT;
-
-#endif
+template<class T> void swap ( optional<T&>& , optional<T&>& ) noexcept;
 
 } // namespace boost
 

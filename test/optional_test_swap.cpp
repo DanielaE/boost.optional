@@ -31,6 +31,8 @@
 
 using boost::optional;
 using boost::none;
+using std::true_type;
+using std::false_type;
 
 #define ARG(T) (static_cast< T const* >(0))
 
@@ -219,12 +221,13 @@ template <class T> struct optional_swap_should_use_default_constructor<
 //
 // Specialization of boost::swap:
 //
+#if 0
 template <>
 void swap(optional<optional_swap_test::class_whose_explicit_ctor_should_be_used> & x, optional<optional_swap_test::class_whose_explicit_ctor_should_be_used> & y)
 {
   optional_swap_test::swap(x, y);
 }
-
+#endif
 } // namespace boost
 
 

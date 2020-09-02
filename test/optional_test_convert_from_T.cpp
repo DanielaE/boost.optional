@@ -28,12 +28,12 @@ struct superconv
 {
   #ifndef BOOST_OPTIONAL_DETAIL_NO_RVALUE_REFERENCES
   template <typename T>
-    superconv(T&&) { BOOST_STATIC_ASSERT(sizeof(T) == 0); }
+    superconv(T&&) { static_assert(sizeof(T) == 0); }
   #else
   template <typename T>
-    superconv(const T&) { BOOST_STATIC_ASSERT(sizeof(T) == 0); }
+    superconv(const T&) { static_assert(sizeof(T) == 0); }
   template <typename T>
-    superconv(      T&) { BOOST_STATIC_ASSERT(sizeof(T) == 0); }
+    superconv(      T&) { static_assert(sizeof(T) == 0); }
   #endif
   
   superconv() {}
