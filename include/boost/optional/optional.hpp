@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <type_traits>
+#include <concepts>
 
 #define DEPRECATED
 
@@ -60,11 +61,11 @@ template <typename T>
 struct is_optional : std::false_type {};
 template <typename T>
 struct is_optional<optional<T>> : std::true_type {
-	typedef T value_type;
+	using value_type = std::remove_cvref_t<T>;
 };
 template <typename T>
 struct is_optional<base<T>> : std::true_type {
-	typedef T value_type;
+	using value_type = std::remove_cvref_t<T>;
 };
 
 template <typename T>
@@ -103,6 +104,31 @@ template <typename T>
 using pointer_t = typename optional<T>::pointer_type;
 template <typename T>
 using const_pointer_t = typename optional<T>::pointer_const_type;
+
+template <typename T, typename U>
+concept eq_comparable =
+	requires(const optional_value_type<T> & lhs, const optional_value_type<U> & rhs) {
+		{ lhs == rhs } -> std::convertible_to<bool>;
+	}
+
+template <typename T, typename U>
+concept lt_comparable =
+	requires(const optional_value_type<T> & lhs, const optional_value_type<U> & rhs) {
+		{ lhs < rhs } -> std::convertible_to<bool>;
+	}
+
+template <typename T, typename U>
+	requires (is_optional<T>::value && is_optional<U>::value && eq_comparable<T, U>)
+constexpr bool eq(const T & lhs, const U & rhs) {
+	const bool lhs_has_value = lhs.has_value();
+	return lhs_has_value == rhs.has_value() && (!lhs_has_value || *lhs == *rhs);	
+}
+template <typename T, typename U>
+	requires (is_optional<T>::value && is_optional<U>::value && lt_comparable<T, U>)
+constexpr bool lt(const T & lhs, const U & rhs) {
+	return rhs.has_value() && (!lhs.has_value() || *lhs < *rhs);
+}
+
 } // namespace detail
 
 template <typename T>
