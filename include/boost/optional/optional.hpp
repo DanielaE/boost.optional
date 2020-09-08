@@ -273,11 +273,11 @@ public:
 
 	template <class Func>
 	[[nodiscard]] constexpr T & value_or_eval(Func f) const & {
-		return this->has_value ? **this : f();
+		return this->has_value()? **this : f();
 	}
 	template <class Func>
 	[[nodiscard]] constexpr T & value_or_eval(Func f) && {
-		return this->has_value ? std::move(**this) : f();
+		return this->has_value()? std::move(**this) : f();
 	}
 
 	// modifiers
@@ -449,22 +449,22 @@ template <typename T, typename U>
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const optional<U> & rhs) {
-	return rhs.has_value() && (!lhs.has_value || *lhs < *rhs);
+	return rhs.has_value() && (!lhs.has_value() || *lhs < *rhs);
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const optional<U> & rhs) {
-	return lhs.has_value() && (!rhs.has_value || *lhs > *rhs);
+	return lhs.has_value() && (!rhs.has_value() || *lhs > *rhs);
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const optional<U> & rhs) {
-	return !lhs.has_value() || (rhs.has_value && *lhs <= *rhs);
+	return !lhs.has_value() || (rhs.has_value()&& *lhs <= *rhs);
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const optional<U> & rhs) {
-	return !rhs.has_value() || (lhs.has_value && *lhs >= *rhs);
+	return !rhs.has_value() || (lhs.has_value()&& *lhs >= *rhs);
 }
 
 template <typename T, std::three_way_comparable_with<T> U>
@@ -495,10 +495,12 @@ template <typename T, typename U>
 }
 
 template <typename T, typename U>
+    requires requires(const T & a, const T & b) { { a > b } -> std::convertible_to<bool>; }
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const detail::base<U> & rhs) {
 	return lhs > static_cast<const optional<U> &>(rhs);
 }
 template <typename T, typename U>
+    requires requires(const T & a, const T & b) { { a > b } -> std::convertible_to<bool>; }
 [[nodiscard]] constexpr bool operator>(const detail::base<T> & lhs, const optional<U> & rhs) {
 	return static_cast<const optional<T> &>(lhs) > rhs;
 }
