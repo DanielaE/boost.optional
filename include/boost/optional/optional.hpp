@@ -2,10 +2,10 @@
 //#if __cplusplus <= 201703L
 //#  error insufficient language support!
 //#endif
-
 #include <optional>
 #include <type_traits>
 #include <concepts>
+#include <compare>
 
 #define DEPRECATED
 
@@ -62,17 +62,19 @@ struct is_optional : std::false_type {};
 template <typename T>
 struct is_optional<optional<T>> : std::true_type {
 	using value_type = std::remove_cvref_t<T>;
+	using type = optional<T>;
 };
 template <typename T>
 struct is_optional<base<T>> : std::true_type {
 	using value_type = std::remove_cvref_t<T>;
+	using type = base<T>;
 };
 
 template <typename T>
-using optional_value_type = typename is_optional<T>::value_type;
+using optional_value_type = typename is_optional<std::remove_cvref_t<T>>::value_type;
 
 template <typename T>
-concept not_optional = !is_optional<std::decay_t<T>>::value;
+concept not_optional = !is_optional<std::remove_cvref_t<T>>::value;
 
 template <class T, class U>
 concept constructible =
@@ -105,30 +107,40 @@ using pointer_t = typename optional<T>::pointer_type;
 template <typename T>
 using const_pointer_t = typename optional<T>::pointer_const_type;
 
+template <typename T>
+concept _bool_testable = std::convertible_to<T, bool>;
+template <typename T>
+concept bool_testable = _bool_testable<T> && requires(T && t) {
+	{ !static_cast<T &&>(t) } -> _bool_testable;
+};
+
 template <typename T, typename U>
 concept eq_comparable =
-	requires(const optional_value_type<T> & lhs, const optional_value_type<U> & rhs) {
-		{ lhs == rhs } -> std::convertible_to<bool>;
-	}
+	requires(const std::remove_cvref_t<T> & lhs, const std::remove_cvref_t<U> & rhs) {
+		{ lhs == rhs } -> bool_testable;
+	};
 
 template <typename T, typename U>
 concept lt_comparable =
-	requires(const optional_value_type<T> & lhs, const optional_value_type<U> & rhs) {
-		{ lhs < rhs } -> std::convertible_to<bool>;
-	}
+	requires(const std::remove_cvref_t<T> & lhs, const std::remove_cvref_t<U> & rhs) {
+		{ lhs < rhs } -> bool_testable;
+	};
 
 template <typename T, typename U>
-	requires (is_optional<T>::value && is_optional<U>::value && eq_comparable<T, U>)
 constexpr bool eq(const T & lhs, const U & rhs) {
 	const bool lhs_has_value = lhs.has_value();
-	return lhs_has_value == rhs.has_value() && (!lhs_has_value || *lhs == *rhs);	
+	return lhs_has_value == rhs.has_value() && (!lhs_has_value || *lhs == *rhs);
 }
 template <typename T, typename U>
-	requires (is_optional<T>::value && is_optional<U>::value && lt_comparable<T, U>)
 constexpr bool lt(const T & lhs, const U & rhs) {
 	return rhs.has_value() && (!lhs.has_value() || *lhs < *rhs);
 }
-
+template <typename T, typename U>
+constexpr std::compare_three_way_result_t<T, U> tw(const T & lhs, const U & rhs) {
+	const bool lhs_has_value = lhs.has_value();
+	const bool rhs_has_value = rhs.has_value();
+	return lhs_has_value && rhs_has_value ? *lhs <=> *rhs : lhs_has_value <=> rhs_has_value;
+}
 } // namespace detail
 
 template <typename T>
@@ -191,6 +203,34 @@ public:
 	constexpr optional(const base & from) : base(from) {}
 	constexpr optional(base && from) noexcept : base(std::move(from)) {}
 
+#if 1
+	template <typename U>
+	[[nodiscard]] constexpr bool operator==(U && rhs) const {
+		using V = std::remove_cvref_t<U>;
+		const bool lhs_has_value = this->has_value();
+		if constexpr (!detail::not_optional<V>) {
+			return lhs_has_value == rhs.has_value() && (!lhs_has_value || **this == *rhs);
+		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
+			return !lhs_has_value;
+		} else {
+			return lhs_has_value && **this == rhs;
+		}
+	}
+
+	template <typename U>
+	[[nodiscard]] constexpr auto operator<=>(U && rhs) const {
+		using V = std::remove_cvref_t<U>;
+		const bool lhs_has_value = this->has_value();
+		if constexpr (!detail::not_optional<V>) {
+			const bool rhs_has_value = rhs.has_value();
+			return lhs_has_value && rhs_has_value ? **this <=> *rhs : lhs_has_value <=> rhs_has_value;
+		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
+			return lhs_has_value <=> false;
+		} else {
+			return lhs_has_value ? **this <=> rhs : std::strong_ordering::less;
+		}
+	}
+#endif
 	// non-standard additional Boost interfaces
 
 	using value_type           = T;
@@ -387,6 +427,34 @@ public:
 		detail::taint_rvalue<U>{};
 	}
 
+#if 1
+	template <typename U>
+	[[nodiscard]] constexpr bool operator==(U && rhs) const {
+		using V = std::remove_cvref_t<U>;
+		const bool lhs_has_value = p_ != nullptr;
+		if constexpr (!detail::not_optional<V>) {
+			return lhs_has_value == rhs.has_value() && (!lhs_has_value || *p_ == *rhs);
+		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
+			return !lhs_has_value;
+		} else {
+			return lhs_has_value && *p_ == rhs;
+		}
+	}
+
+	template <typename U>
+	[[nodiscard]] constexpr auto operator<=>(U && rhs) const {
+		using V = std::remove_cvref_t<U>;
+		const bool lhs_has_value = p_ != nullptr;
+		if constexpr (!detail::not_optional<V>) {
+			const bool rhs_has_value = rhs.has_value();
+			return lhs_has_value && rhs_has_value ? *p_ <=> *rhs : lhs_has_value <=> rhs_has_value;
+		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
+			return lhs_has_value <=> false;
+		} else {
+			return lhs_has_value ? *p_ <=> rhs : std::strong_ordering::less;
+		}
+	}
+#endif
 	// non-standard additional Boost interfaces
 
 	using value_type           = T &;
@@ -460,118 +528,128 @@ public:
 	}
 };
 
+#if 1
 // [optional.relops]
 template <typename T, typename U>
+	requires detail::eq_comparable<T, U>
 [[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const optional<U> & rhs) {
-	const bool lhs_has_value = lhs.has_value();
-	return lhs_has_value == rhs.has_value() && (!lhs_has_value || *lhs == *rhs);
+	return lhs.operator==(rhs);
 }
 
 template <typename T, typename U>
+	requires detail::eq_comparable<T, U>
 [[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const optional<U> & rhs) {
-	const bool lhs_has_value = lhs.has_value();
-	return lhs_has_value != rhs.has_value() || (lhs_has_value && *lhs != *rhs);
+	return !lhs.operator==(rhs);
 }
 
 template <typename T, typename U>
+	requires detail::lt_comparable<T, U>
 [[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const optional<U> & rhs) {
-	return rhs.has_value() && (!lhs.has_value() || *lhs < *rhs);
+	return lhs.operator<=>(rhs) < 0;
 }
 
 template <typename T, typename U>
+	requires detail::lt_comparable<U, T>
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const optional<U> & rhs) {
-	return lhs.has_value() && (!rhs.has_value() || *lhs > *rhs);
+	return lhs.operator<=>(rhs) > 0;
 }
 
 template <typename T, typename U>
+	requires detail::lt_comparable<U, T>
 [[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const optional<U> & rhs) {
-	return !lhs.has_value() || (rhs.has_value()&& *lhs <= *rhs);
+	return lhs.operator<=>(rhs) <= 0;
 }
 
 template <typename T, typename U>
+	requires detail::lt_comparable<T, U>
 [[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const optional<U> & rhs) {
-	return !rhs.has_value() || (lhs.has_value()&& *lhs >= *rhs);
+	return lhs.operator<=>(rhs) >= 0;
 }
 
-template <typename T, std::three_way_comparable_with<T> U>
+#if 0
+template <typename T, typename U>
+	requires std::three_way_comparable_with<T, U>
 [[nodiscard]] constexpr std::compare_three_way_result_t<T, U>
 operator<=>(const optional<T> & lhs, const optional<U> & rhs) {
-	const bool lhs_has_value = lhs.has_value();
-	const bool rhs_has_value = rhs.has_value();
-	return lhs_has_value && rhs_has_value ? *lhs <=> *rhs : lhs_has_value <=> rhs_has_value;
+	return detail::tw(lhs, rhs);
 }
-
+#endif
+#if 0
 // compare with base
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const detail::base<U> & rhs) {
-	return lhs == static_cast<const optional<U> &>(rhs);
+	requires detail::eq_comparable<T, U>
+[[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return detail::eq(lhs, rhs);
 }
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator==(const detail::base<T> & lhs, const optional<U> & rhs) {
-	return static_cast<const optional<T> &>(lhs) == rhs;
+	requires detail::eq_comparable<T, U>
+[[nodiscard]] constexpr bool operator==(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return detail::eq(lhs, rhs);
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const detail::base<U> & rhs) {
-	return lhs != static_cast<const optional<U> &>(rhs);
+	requires detail::eq_comparable<T, U>
+[[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return !detail::eq(lhs, rhs);
 }
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator!=(const detail::base<T> & lhs, const optional<U> & rhs) {
-	return static_cast<const optional<T> &>(lhs) != rhs;
+	requires detail::eq_comparable<T, U>
+[[nodiscard]] constexpr bool operator!=(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return !detail::eq(lhs, rhs);
 }
 
 template <typename T, typename U>
-    requires requires(const T & a, const T & b) { { a > b } -> std::convertible_to<bool>; }
-[[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const detail::base<U> & rhs) {
-	return lhs > static_cast<const optional<U> &>(rhs);
+	requires detail::lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return detail::lt(lhs, rhs);
 }
 template <typename T, typename U>
-    requires requires(const T & a, const T & b) { { a > b } -> std::convertible_to<bool>; }
-[[nodiscard]] constexpr bool operator>(const detail::base<T> & lhs, const optional<U> & rhs) {
-	return static_cast<const optional<T> &>(lhs) > rhs;
+	requires detail::lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator<(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return detail::lt(lhs, rhs);
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const detail::base<U> & rhs) {
-	return lhs < static_cast<const optional<U> &>(rhs);
+	requires detail::lt_comparable<U, T>
+[[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return detail::lt(rhs, lhs);
 }
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator<(const detail::base<T> & lhs, const optional<U> & rhs) {
-	return static_cast<const optional<T> &>(lhs) < rhs;
+	requires detail::lt_comparable<U, T>
+[[nodiscard]] constexpr bool operator>(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return detail::lt(rhs, lhs);
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const detail::base<U> & rhs) {
-	return lhs >= static_cast<const optional<U> &>(rhs);
+	requires detail::lt_comparable<U, T>
+[[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return !detail::lt(rhs, lhs);
 }
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator>=(const detail::base<T> & lhs, const optional<U> & rhs) {
-	return static_cast<const optional<T> &>(lhs) >= rhs;
+	requires detail::lt_comparable<U, T>
+[[nodiscard]] constexpr bool operator<=(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return !detail::lt(rhs, lhs);
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const detail::base<U> & rhs) {
-	return lhs <= static_cast<const optional<U> &>(rhs);
+	requires detail::lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return !detail::lt(lhs, rhs);
 }
 template <typename T, typename U>
-[[nodiscard]] constexpr bool operator<=(const detail::base<T> & lhs, const optional<U> & rhs) {
-	return static_cast<const optional<T> &>(lhs) <= rhs;
+	requires detail::lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator>=(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return !detail::lt(lhs, rhs);
 }
-
-template <typename T, std::three_way_comparable_with<T> U>
+#endif
+#if 0
+template <typename T, typename U>
+	requires std::three_way_comparable_with<T, U>
 [[nodiscard]] constexpr std::compare_three_way_result_t<T, U>
-operator<=>(const optional<T> & lhs, const detail::base<U> & rhs) {
-	const bool lhs_has_value = lhs.has_value();
-	const bool rhs_has_value = rhs.has_value();
-	return lhs_has_value && rhs_has_value ? *lhs <=> *rhs : lhs_has_value <=> rhs_has_value;
+operator<=>(const optional<T> & lhs, const std::optional<U> & rhs) {
+	return detail::tw(lhs, rhs);
 }
-template <typename T, std::three_way_comparable_with<T> U>
-[[nodiscard]] constexpr std::compare_three_way_result_t<T, U>
-operator<=>(const detail::base<T> & lhs, const optional<U> & rhs) {
-	const bool lhs_has_value = lhs.has_value();
-	const bool rhs_has_value = rhs.has_value();
-	return lhs_has_value && rhs_has_value ? *lhs <=> *rhs : lhs_has_value <=> rhs_has_value;
-}
+#endif
 
 // [optional.nullops]
 template <typename T>
@@ -584,11 +662,11 @@ template <typename T>
 }
 
 template <typename T>
-[[nodiscard]] constexpr bool operator/=(const optional<T> & o, std::nullopt_t) noexcept {
+[[nodiscard]] constexpr bool operator!=(const optional<T> & o, std::nullopt_t) noexcept {
 	return o.has_value();
 }
 template <typename T>
-[[nodiscard]] constexpr bool operator/=(std::nullopt_t, const optional<T> & o) noexcept {
+[[nodiscard]] constexpr bool operator!=(std::nullopt_t, const optional<T> & o) noexcept {
 	return o.has_value();
 }
 
@@ -628,72 +706,90 @@ template <typename T>
 	return !o.has_value();
 }
 
+#if 0
 template <typename T>
 [[nodiscard]] constexpr std::strong_ordering
 operator<=>(const optional<T> & o, std::nullopt_t) noexcept {
 	return o.has_value() <=> false;
 }
-
+#endif
+#if 0
 // [optional.comp.with.t]
-template <typename T, typename U>
+template <typename T, detail::not_optional U>
+	requires detail::eq_comparable<T, U>
 constexpr bool operator==(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o == value : false;
 }
-template <typename T, typename U>
-constexpr bool operator==(const T & value, const optional<U> & o) {
+template <typename T, detail::not_optional U>
+	requires detail::eq_comparable<T, U>
+constexpr bool operator==(const U & value, const optional<T> & o) {
 	return o.has_value() ? *o == value : false;
 }
 
-template <typename T, typename U>
+template <typename T, detail::not_optional U>
+	requires detail::eq_comparable<T, U>
 constexpr bool operator!=(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o != value : true;
 }
-template <typename T, typename U>
-constexpr bool operator!=(const T & value, const optional<U> & o) {
+template <typename T, detail::not_optional U>
+	requires detail::eq_comparable<T, U>
+constexpr bool operator!=(const U & value, const optional<T> & o) {
 	return o.has_value() ? *o != value : true;
 }
 
-template <typename T, typename U>
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
 constexpr bool operator<(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o < value : true;
 }
-template <typename T, typename U>
-constexpr bool operator<(const T & value, const optional<U> & o) {
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
+constexpr bool operator<(const U & value, const optional<T> & o) {
 	return o.has_value() ? *o > value : false;
 }
 
-template <typename T, typename U>
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
 constexpr bool operator>(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o > value : true;
 }
-template <typename T, typename U>
-constexpr bool operator>(const T & value, const optional<U> & o) {
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
+constexpr bool operator>(const U & value, const optional<T> & o) {
 	return o.has_value() ? *o < value : false;
 }
 
-template <typename T, typename U>
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
 constexpr bool operator<=(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o <= value : false;
 }
-template <typename T, typename U>
-constexpr bool operator<=(const T & value, const optional<U> & o) {
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
+constexpr bool operator<=(const U & value, const optional<T> & o) {
 	return o.has_value() ? *o >= value : true;
 }
 
-template <typename T, typename U>
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
 constexpr bool operator>=(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o >= value : false;
 }
-template <typename T, typename U>
-constexpr bool operator>=(const T & value, const optional<U> & o) {
+template <typename T, detail::not_optional U>
+	requires detail::lt_comparable<T, U>
+constexpr bool operator>=(const U & value, const optional<T> & o) {
 	return o.has_value() ? *o <= value : true;
 }
-
-template <typename T, std::three_way_comparable_with<T> U>
+#endif
+#if 0
+template <typename T, detail::not_optional U>
+	requires std::three_way_comparable_with<T, U>
 constexpr std::compare_three_way_result_t<T, U>
 operator<=>(const optional<T> & o, const U & value) {
 	return o.has_value() ? *o <=> value : std::strong_ordering::less;
 }
+#endif
+#endif
 
 // [optional.specalg]
 template <typename T>
