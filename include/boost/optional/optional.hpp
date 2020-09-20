@@ -8,8 +8,12 @@
 #include <compare>
 
 #define DEPRECATED
+#if !defined(OPTIONAL_NO_CPP17_SIGNATURES) && defined(__cpp_lib_three_way_comparison)
 #define OPTIONAL_NO_CPP17_SIGNATURES
-//#define OPTIONAL_NO_QUICK_NULLOPT_RELOPS
+#endif
+#if !defined(OPTIONAL_NO_QUICK_NULLOPT_RELOPS)
+#define OPTIONAL_NO_QUICK_NULLOPT_RELOPS
+#endif
 
 #ifndef NS_OPTIONAL
 #  define NS_OPTIONAL boost
@@ -18,6 +22,9 @@
 namespace boost {
 class in_place_factory_base;
 class typed_in_place_factory_base;
+
+template<class T>
+struct optional_swap_should_use_default_constructor;
 } // namespace boost
 
 namespace NS_OPTIONAL {
@@ -46,37 +53,23 @@ using none_t              = std::nullopt_t;
 inline constexpr none_t none{ std::nullopt };
 #endif
 
-template <typename T>
-class optional;
-
-template <class T>
-optional(T) -> optional<T>;
-
-template<class T>
-struct optional_swap_should_use_default_constructor;
-
 namespace detail {
 template <typename T>
 using base = std::optional<T>;
 
+constexpr std::false_type optional_tag(...);
 template <typename T>
-struct is_optional : std::false_type {};
+struct test_optional : decltype(optional_tag((const T *)nullptr)) {};
 template <typename T>
-struct is_optional<optional<T>> : std::true_type {
-	using value_type = std::remove_cvref_t<T>;
-	using type = optional<T>;
-};
-template <typename T>
-struct is_optional<base<T>> : std::true_type {
-	using value_type = std::remove_cvref_t<T>;
-	using type = base<T>;
-};
+struct test_optional<base<T>> : std::true_type {};
 
 template <typename T>
-using optional_value_type = typename is_optional<std::remove_cvref_t<T>>::value_type;
-
+concept optional_type = test_optional<std::remove_cvref_t<T>>::value;
 template <typename T>
-concept not_optional = !is_optional<std::remove_cvref_t<T>>::value;
+concept not_optional = !optional_type<T>;
+
+template <optional_type T>
+using optional_value_type = typename std::remove_cvref_t<T>::value_type;
 
 template <class T, class U>
 concept constructible =
@@ -99,15 +92,6 @@ std::remove_reference_t<T> & forward_reference(T && r) {
 	taint_rvalue<T>{};
 	return std::forward<T>(r);
 }
-
-template <typename T>
-using reference_t = typename optional<T>::reference_type;
-template <typename T>
-using const_reference_t = typename optional<T>::reference_const_type;
-template <typename T>
-using pointer_t = typename optional<T>::pointer_type;
-template <typename T>
-using const_pointer_t = typename optional<T>::pointer_const_type;
 
 template <typename T>
 concept _bool_testable = std::convertible_to<T, bool>;
@@ -133,6 +117,8 @@ concept tw_comparable =
 template <typename T>
 class optional : public detail::base<T> {
 	using base = detail::base<T>;
+	template <typename U>
+	friend constexpr std::true_type optional_tag(const optional<U> *);
 
 	template <typename Factory>
 	struct construct_by {
@@ -154,12 +140,12 @@ class optional : public detail::base<T> {
 public:
 	// construction
 //	using base::optional;
-	constexpr optional() noexcept = default;
-	constexpr optional(const T & other) : base(other) {}
-	constexpr optional(T && other) : base(std::forward<T>(other)) {}
+	[[nodiscard]] constexpr optional() noexcept = default;
+	[[nodiscard]] constexpr optional(const T & other) : base(other) {}
+	[[nodiscard]] constexpr optional(T && other) : base(std::forward<T>(other)) {}
 	template <typename U>
 		requires (!std::is_same_v<T, std::decay_t<U>>)
-	constexpr optional(U && rhs) : base(std::forward<U>(rhs)) {}
+	[[nodiscard]] constexpr optional(U && rhs) : base(std::forward<U>(rhs)) {}
 
 	// assignment
 	optional & operator=(std::nullopt_t) noexcept {
@@ -194,7 +180,7 @@ public:
 	[[nodiscard]] constexpr bool operator==(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = this->has_value();
-		if constexpr (!detail::not_optional<V>) {
+		if constexpr (detail::optional_type<V>) {
 			return lhs_has_value == rhs.has_value() && (!lhs_has_value || **this == *rhs);
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
 			return !lhs_has_value;
@@ -207,7 +193,7 @@ public:
 	[[nodiscard]] constexpr auto operator<=>(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = this->has_value();
-		if constexpr (!detail::not_optional<V>) {
+		if constexpr (detail::optional_type<V>) {
 			const bool rhs_has_value = rhs.has_value();
 			return lhs_has_value && rhs_has_value ? **this <=> *rhs : lhs_has_value <=> rhs_has_value;
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
@@ -346,26 +332,29 @@ public:
 
 template <typename T>
 class optional<T &> {
+	template <typename U>
+	friend constexpr std::true_type optional_tag(const optional<U &> *);
+
 	T * p_ = nullptr;
 
 public:
 	// construction
-	constexpr optional() noexcept = default;
-	constexpr optional(std::nullopt_t) noexcept {}
-	constexpr optional(const optional & other) noexcept = default;
-	constexpr optional(optional && other) noexcept      = default;
+	[[nodiscard]] constexpr optional() noexcept = default;
+	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {}
+	[[nodiscard]] constexpr optional(const optional & other) noexcept = default;
+	[[nodiscard]] constexpr optional(optional && other) noexcept      = default;
 	optional(T &&) { detail::taint_rvalue<T>{}; }
 
 	template <class U>
-	constexpr explicit optional(const optional<U &> & other) noexcept : p_(other.p_) {}
+	[[nodiscard]] constexpr explicit optional(const optional<U &> & other) noexcept : p_(other.p_) {}
 
 	template <typename U>
 		requires detail::constructible<T, U>
-	constexpr optional(U & other) noexcept : p_(std::addressof(other)) {}
+	[[nodiscard]] constexpr optional(U & other) noexcept : p_(std::addressof(other)) {}
 
 	template <typename U>
 		requires(detail::not_optional<U> && !detail::constructible<T, U>)
-	constexpr optional(U && other) noexcept : p_(std::addressof(other)) {
+	[[nodiscard]] constexpr optional(U && other) noexcept : p_(std::addressof(other)) {
 		detail::taint_rvalue<U>{};
 	}
 
@@ -417,7 +406,7 @@ public:
 	[[nodiscard]] constexpr bool operator==(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = p_ != nullptr;
-		if constexpr (!detail::not_optional<V>) {
+		if constexpr (detail::optional_type<V>) {
 			return lhs_has_value == rhs.has_value() && (!lhs_has_value || *p_ == *rhs);
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
 			return !lhs_has_value;
@@ -430,7 +419,7 @@ public:
 	[[nodiscard]] constexpr auto operator<=>(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = p_ != nullptr;
-		if constexpr (!detail::not_optional<V>) {
+		if constexpr (detail::optional_type<V>) {
 			const bool rhs_has_value = rhs.has_value();
 			return lhs_has_value && rhs_has_value ? *p_ <=> *rhs : lhs_has_value <=> rhs_has_value;
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
@@ -631,7 +620,21 @@ make_optional(std::initializer_list<E> list, Args &&... args) {
 	return optional<T>{ std::in_place, list, std::forward<Args>(args)... };
 }
 
+template <class T>
+optional(T) -> optional<T>;
+
 // non-standard additional Boost interfaces
+
+namespace {
+template <typename T>
+using reference_t = typename optional<T>::reference_type;
+template <typename T>
+using const_reference_t = typename optional<T>::reference_const_type;
+template <typename T>
+using pointer_t = typename optional<T>::pointer_type;
+template <typename T>
+using const_pointer_t = typename optional<T>::pointer_const_type;
+}
 
 template <typename T>
 [[nodiscard]] constexpr optional<std::decay_t<T>>
@@ -640,44 +643,44 @@ make_optional(bool condition, T && v) {
 }
 
 template <typename T>
-constexpr detail::const_reference_t<T> get(const optional<T> & o) {
+constexpr const_reference_t<T> get(const optional<T> & o) {
 	return o.get();
 }
 
 template <typename T>
-constexpr detail::reference_t<T> get(optional<T> & o) {
+constexpr reference_t<T> get(optional<T> & o) {
 	return o.get();
 }
 
 template <typename T>
-constexpr detail::const_pointer_t<T> get(const optional<T> * o) {
+constexpr const_pointer_t<T> get(const optional<T> * o) {
 	return o->get_ptr();
 }
 
 template <typename T>
-constexpr detail::pointer_t<T> get(optional<T> * o) {
+constexpr pointer_t<T> get(optional<T> * o) {
 	return o->get_ptr();
 }
 
 template <typename T>
-constexpr detail::const_reference_t<T>
-get_optional_value_or(const optional<T> & o, detail::const_reference_t<T> v) {
+constexpr const_reference_t<T>
+get_optional_value_or(const optional<T> & o, const_reference_t<T> v) {
 	return o.get_value_or(v);
 }
 
 template <typename T>
-constexpr detail::reference_t<T>
-get_optional_value_or(optional<T> & o, detail::reference_t<T> v) {
+constexpr reference_t<T>
+get_optional_value_or(optional<T> & o, reference_t<T> v) {
 	return o.get_value_or(v);
 }
 
 template <typename T>
-constexpr detail::const_pointer_t<T> get_pointer(const optional<T> & o) {
+constexpr const_pointer_t<T> get_pointer(const optional<T> & o) {
 	return o.get_ptr();
 }
 
 template <typename T>
-constexpr detail::pointer_t<T> get_pointer(optional<T> & o) {
+constexpr pointer_t<T> get_pointer(optional<T> & o) {
 	return o.get_ptr();
 }
 } // namespace NS_OPTIONAL
