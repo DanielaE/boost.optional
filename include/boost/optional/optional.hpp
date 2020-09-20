@@ -53,15 +53,15 @@ using none_t              = std::nullopt_t;
 inline constexpr none_t none{ std::nullopt };
 #endif
 
-namespace detail {
+namespace {
 template <typename T>
-using base = std::optional<T>;
+using base_optional = std::optional<T>;
 
 constexpr std::false_type optional_tag(...);
 template <typename T>
 struct test_optional : decltype(optional_tag((const T *)nullptr)) {};
 template <typename T>
-struct test_optional<base<T>> : std::true_type {};
+struct test_optional<base_optional<T>> : std::true_type {};
 
 template <typename T>
 concept optional_type = test_optional<std::remove_cvref_t<T>>::value;
@@ -82,18 +82,6 @@ concept is_inplace_factory =
 	std::is_base_of_v<typed_in_place_factory_base, std::decay_t<T>>;
 
 template <typename T>
-struct taint_rvalue {
-	[[maybe_unused]] taint_rvalue() = default;
-	static_assert(std::is_lvalue_reference_v<T>, "binding rvalues is ill-formed");
-};
-
-template <typename T>
-std::remove_reference_t<T> & forward_reference(T && r) {
-	taint_rvalue<T>{};
-	return std::forward<T>(r);
-}
-
-template <typename T>
 concept _bool_testable = std::convertible_to<T, bool>;
 template <typename T>
 concept bool_testable = _bool_testable<T> && requires(T && t) {
@@ -112,11 +100,11 @@ concept tw_comparable =
 		{ (lhs <=> rhs) == 0 } -> bool_testable;
 	};
 
-} // namespace detail
+} // anonymous namespace
 
 template <typename T>
-class optional : public detail::base<T> {
-	using base = detail::base<T>;
+class optional : public base_optional<T> {
+	using base = base_optional<T>;
 	template <typename U>
 	friend constexpr std::true_type optional_tag(const optional<U> *);
 
@@ -159,17 +147,17 @@ public:
 	}
 
 	template <typename U>
-		requires requires(const detail::base<U> & rhs) { base::operator=(rhs); }
+		requires requires(const base_optional<U> & rhs) { base::operator=(rhs); }
 	optional & operator=(const optional<U> & rhs) {
 		return static_cast<optional &>(
-			base::operator=(static_cast<const detail::base<U> &>(rhs)));
+			base::operator=(static_cast<const base_optional<U> &>(rhs)));
 	}
 
 	template <typename U>
-		requires requires(detail::base<U> && rhs) { base::operator=(std::move(rhs)); }
+		requires requires(base_optional<U> && rhs) { base::operator=(std::move(rhs)); }
 	optional & operator=(optional<U> && rhs) {
 		return static_cast<optional &>(
-			base::operator=(static_cast<detail::base<U> &&>(rhs)));
+			base::operator=(static_cast<base_optional<U> &&>(rhs)));
 	}
 
 	// conversion from base
@@ -180,7 +168,7 @@ public:
 	[[nodiscard]] constexpr bool operator==(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = this->has_value();
-		if constexpr (detail::optional_type<V>) {
+		if constexpr (optional_type<V>) {
 			return lhs_has_value == rhs.has_value() && (!lhs_has_value || **this == *rhs);
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
 			return !lhs_has_value;
@@ -193,7 +181,7 @@ public:
 	[[nodiscard]] constexpr auto operator<=>(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = this->has_value();
-		if constexpr (detail::optional_type<V>) {
+		if constexpr (optional_type<V>) {
 			const bool rhs_has_value = rhs.has_value();
 			return lhs_has_value && rhs_has_value ? **this <=> *rhs : lhs_has_value <=> rhs_has_value;
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
@@ -224,13 +212,13 @@ public:
 	: base{ condition ? base(std::in_place, std::forward<Args>(args)...) : base{} } {}
 
 	template <typename Factory>
-		requires detail::is_inplace_factory<Factory>
+		requires is_inplace_factory<Factory>
 	explicit optional(Factory && f)
 	: base(std::in_place, construct_by(std::forward<Factory>(f))) {}
 
 	// assignment
 	template <typename Factory>
-		requires detail::is_inplace_factory<Factory>
+		requires is_inplace_factory<Factory>
 	optional<T> & operator=(Factory && f) {
 		this->emplace(construct_by(std::forward<Factory>(f)));
 		return *this;
@@ -277,7 +265,7 @@ public:
 
 	template <typename Func>
 	[[nodiscard]] constexpr
-		optional<detail::optional_value_type<std::invoke_result_t<Func, T &>>>
+		optional<optional_value_type<std::invoke_result_t<Func, T &>>>
 	flat_map(Func f) & {
 		if (this->has_value())
 			return f(**this);
@@ -286,7 +274,7 @@ public:
 
 	template <typename Func>
 	[[nodiscard]] constexpr
-		optional<detail::optional_value_type<std::invoke_result_t<Func, const T &>>>
+		optional<optional_value_type<std::invoke_result_t<Func, const T &>>>
 	flat_map(Func f) const & {
 		if (this->has_value())
 			return f(**this);
@@ -295,7 +283,7 @@ public:
 
 	template <typename Func>
 	[[nodiscard]] constexpr
-		optional<detail::optional_value_type<std::invoke_result_t<Func, T &&>>>
+		optional<optional_value_type<std::invoke_result_t<Func, T &&>>>
 	flat_map(Func f) && {
 		if (this->has_value())
 			return f(std::move(**this));
@@ -335,6 +323,18 @@ class optional<T &> {
 	template <typename U>
 	friend constexpr std::true_type optional_tag(const optional<U &> *);
 
+	template <typename U>
+	struct taint_rvalue {
+		[[maybe_unused]] constexpr taint_rvalue() = default;
+		static_assert(std::is_lvalue_reference_v<U>, "binding rvalues is ill-formed");
+	};
+
+	template <typename U>
+	constexpr std::remove_reference_t<U> & forward_reference(U && r) {
+		taint_rvalue<U>{};
+		return std::forward<U>(r);
+	}
+
 	T * p_ = nullptr;
 
 public:
@@ -343,19 +343,19 @@ public:
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {}
 	[[nodiscard]] constexpr optional(const optional & other) noexcept = default;
 	[[nodiscard]] constexpr optional(optional && other) noexcept      = default;
-	optional(T &&) { detail::taint_rvalue<T>{}; }
+	optional(T &&) { taint_rvalue<T>{}; }
 
 	template <class U>
 	[[nodiscard]] constexpr explicit optional(const optional<U &> & other) noexcept : p_(other.p_) {}
 
 	template <typename U>
-		requires detail::constructible<T, U>
+		requires constructible<T, U>
 	[[nodiscard]] constexpr optional(U & other) noexcept : p_(std::addressof(other)) {}
 
 	template <typename U>
-		requires(detail::not_optional<U> && !detail::constructible<T, U>)
+		requires(not_optional<U> && !constructible<T, U>)
 	[[nodiscard]] constexpr optional(U && other) noexcept : p_(std::addressof(other)) {
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 	}
 
 	// assignment
@@ -374,9 +374,9 @@ public:
 	}
 
 	template <typename U>
-		requires detail::not_optional<U>
+		requires not_optional<U>
 	constexpr optional & operator=(U && rhs) noexcept {
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 		p_ = std::addressof(rhs);
 		return *this;
 	}
@@ -396,17 +396,17 @@ public:
 	constexpr void reset() noexcept { p_ = nullptr; }
 
 	template <typename U>
-		requires detail::not_optional<U>
+		requires not_optional<U>
 	constexpr void emplace(U && rhs) noexcept {
 		p_ = std::addressof(rhs);
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 	}
 
 	template <typename U>
 	[[nodiscard]] constexpr bool operator==(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = p_ != nullptr;
-		if constexpr (detail::optional_type<V>) {
+		if constexpr (optional_type<V>) {
 			return lhs_has_value == rhs.has_value() && (!lhs_has_value || *p_ == *rhs);
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
 			return !lhs_has_value;
@@ -419,7 +419,7 @@ public:
 	[[nodiscard]] constexpr auto operator<=>(U && rhs) const {
 		using V = std::remove_cvref_t<U>;
 		const bool lhs_has_value = p_ != nullptr;
-		if constexpr (detail::optional_type<V>) {
+		if constexpr (optional_type<V>) {
 			const bool rhs_has_value = rhs.has_value();
 			return lhs_has_value && rhs_has_value ? *p_ <=> *rhs : lhs_has_value <=> rhs_has_value;
 		} else if constexpr (std::is_convertible_v<V, std::nullopt_t>) {
@@ -440,10 +440,10 @@ public:
 
 	// construction
 	template <typename U>
-		requires detail::not_optional<U>
+		requires not_optional<U>
 	constexpr optional(bool condition, U && rhs) noexcept
 	: p_(condition ? std::addressof(rhs) : nullptr) {
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 	}
 
 	// observers
@@ -460,7 +460,7 @@ public:
 	}
 
 	template <typename Func>
-	[[nodiscard]] optional<detail::optional_value_type<std::invoke_result_t<Func, T &>>>
+	[[nodiscard]] optional<optional_value_type<std::invoke_result_t<Func, T &>>>
 	flat_map(Func f) const {
 		if (this->has_value())
 			return f(**this);
@@ -468,15 +468,16 @@ public:
 	}
 
 	template <typename U>
-		requires detail::not_optional<U>
+		requires not_optional<U>
 	[[nodiscard]] constexpr T & value_or(U && replacement) const noexcept {
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 		return p_ ? *p_ : replacement;
 	}
 
 	template <class Func>
 	[[nodiscard]] T & value_or_eval(Func f) const {
-		return p_ ? *p_ : detail::forward_reference(f());
+		taint_rvalue<std::invoke_result_t<Func>>{};
+		return p_ ? *p_ : f();
 	}
 
 	// deprecated
@@ -486,18 +487,18 @@ public:
 	}
 
 	template <typename U>
-		requires detail::not_optional<U>
+		requires not_optional<U>
 	DEPRECATED [[nodiscard]] constexpr T &
 	get_value_or(U && replacement) const noexcept {
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 		return p_ ? *p_ : replacement;
 	}
 
 	// modifiers
 	template <typename U>
-		requires detail::not_optional<U>
+		requires not_optional<U>
 	DEPRECATED constexpr void reset(U && rhs) noexcept {
-		detail::taint_rvalue<U>{};
+		taint_rvalue<U>{};
 		p_ = std::addressof(rhs);
 	}
 };
@@ -506,37 +507,37 @@ public:
 
 // [optional.relops]
 template <typename T, typename U>
-	requires detail::eq_comparable<T, U>
+	requires eq_comparable<T, U>
 [[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator==(rhs);
 }
 
 template <typename T, typename U>
-	requires detail::eq_comparable<T, U>
+	requires eq_comparable<T, U>
 [[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const optional<U> & rhs) {
 	return !lhs.operator==(rhs);
 }
 
 template <typename T, typename U>
-	requires detail::tw_comparable<T, U>
+	requires tw_comparable<T, U>
 [[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator<=>(rhs) < 0;
 }
 
 template <typename T, typename U>
-	requires detail::tw_comparable<T, U>
+	requires tw_comparable<T, U>
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator<=>(rhs) > 0;
 }
 
 template <typename T, typename U>
-	requires detail::tw_comparable<T, U>
+	requires tw_comparable<T, U>
 [[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator<=>(rhs) <= 0;
 }
 
 template <typename T, typename U>
-	requires detail::tw_comparable<T, U>
+	requires tw_comparable<T, U>
 [[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator<=>(rhs) >= 0;
 }
@@ -688,9 +689,9 @@ constexpr pointer_t<T> get_pointer(optional<T> & o) {
 // [optional.hash]
 namespace std {
 template <typename T>
-struct hash<::NS_OPTIONAL::optional<T>> : hash<::NS_OPTIONAL::detail::base<T>> {
+struct hash<::NS_OPTIONAL::optional<T>> : hash<::NS_OPTIONAL::base_optional<T>> {
 	using argument_type = ::NS_OPTIONAL::optional<T>;
-	using base          = hash<::NS_OPTIONAL::detail::base<T>>;
+	using base          = hash<::NS_OPTIONAL::base_optional<T>>;
 	using base::base;
 	std::size_t operator()(const argument_type & o) const noexcept {
 		return base::operator()(o);
