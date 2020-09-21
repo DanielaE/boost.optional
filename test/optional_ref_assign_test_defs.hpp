@@ -17,12 +17,11 @@
 #pragma hdrstop
 #endif
 
-#include "boost/core/addressof.hpp"
 #include "testable_classes.hpp"
 
 using boost::optional;
 using boost::none;
-using boost::addressof;
+using std::addressof;
 
 template <typename T>
 void test_copy_assignment_for_const()
