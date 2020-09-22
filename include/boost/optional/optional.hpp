@@ -57,14 +57,12 @@ namespace {
 template <typename T>
 using base_optional = std::optional<T>;
 
-constexpr std::false_type optional_tag(...);
+consteval bool optional_tag(...) { return false; }
 template <typename T>
-struct test_optional : decltype(optional_tag((const T *)nullptr)) {};
-template <typename T>
-struct test_optional<base_optional<T>> : std::true_type {};
+consteval bool optional_tag(const volatile std::optional<T> *) { return true; }
 
 template <typename T>
-concept optional_type = test_optional<std::remove_cvref_t<T>>::value;
+concept optional_type = optional_tag((T *)nullptr);
 template <typename T>
 concept not_optional = !optional_type<T>;
 
@@ -105,16 +103,14 @@ concept tw_comparable =
 template <typename T>
 class optional : public base_optional<T> {
 	using base = base_optional<T>;
-	template <typename U>
-	friend constexpr std::true_type optional_tag(const optional<U> *);
 
 	template <typename Factory>
 	struct construct_by {
 		construct_by(Factory && f) : f_{ std::addressof(f) } {}
 		operator T() const noexcept {
 			union {
-				char _;
-				std::remove_const_t<T> t;
+				char c;
+				std::remove_cv_t<T> t;
 			} storage{};
 			if constexpr (std::is_convertible_v<Factory *, ::boost::in_place_factory_base *>)
 				f_->template apply<T>(std::addressof(storage.t));
@@ -320,8 +316,7 @@ public:
 
 template <typename T>
 class optional<T &> {
-	template <typename U>
-	friend constexpr std::true_type optional_tag(const optional<U &> *);
+	friend consteval bool optional_tag(const volatile optional<T &> *) { return true; }
 
 	template <typename U>
 	struct taint_rvalue {
