@@ -109,9 +109,21 @@ concept lt_comparable =
 	};
 
 template <typename T, typename U>
+concept gt_comparable =
+	requires(const std::remove_cvref_t<T> & lhs, const std::remove_cvref_t<U> & rhs) {
+		{ lhs > rhs } -> bool_testable;
+	};
+
+template <typename T, typename U>
 concept le_comparable =
 	requires(const std::remove_cvref_t<T> & lhs, const std::remove_cvref_t<U> & rhs) {
 		{ lhs <= rhs } -> bool_testable;
+	};
+
+template <typename T, typename U>
+concept ge_comparable =
+	requires(const std::remove_cvref_t<T> & lhs, const std::remove_cvref_t<U> & rhs) {
+		{ lhs >= rhs } -> bool_testable;
 	};
 
 template <typename T, typename U>
@@ -635,45 +647,60 @@ public:
 	}
 };
 
-#ifndef OPTIONAL_NO_CPP17_SIGNATURES
-
 // [optional.relops]
 template <typename T, typename U>
-	requires eq_comparable<T, U>
 [[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator==(rhs);
 }
+template <typename T, typename U>
+[[nodiscard]] constexpr bool operator==(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return rhs.operator==(lhs);
+}
 
 template <typename T, typename U>
-	requires ne_comparable<T, U>
 [[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator!=(rhs);
 }
-
 template <typename T, typename U>
-	requires lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator!=(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return rhs.operator!=(lhs);
+}
+template <typename T, typename U>
 [[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator<(rhs);
 }
-
 template <typename T, typename U>
-	requires lt_comparable<U, T>
+[[nodiscard]] constexpr bool operator<(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return rhs.operator>(lhs);
+}
+#if 0
+template <typename T, typename U>
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const optional<U> & rhs) {
+	return lhs.operator>(rhs);
+}
+#endif
+template <typename T, typename U>
+[[nodiscard]] constexpr bool operator>(const std::optional<T> & lhs, const optional<U> & rhs) {
 	return rhs.operator<(lhs);
 }
 
 template <typename T, typename U>
-	requires le_comparable<T, U>
 [[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const optional<U> & rhs) {
 	return lhs.operator<=(rhs);
 }
-
 template <typename T, typename U>
-	requires le_comparable<U, T>
-[[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const optional<U> & rhs) {
+[[nodiscard]] constexpr bool operator<=(const std::optional<T> & lhs, const optional<U> & rhs) {
 	return rhs.operator<=(lhs);
 }
-#endif
+
+template <typename T, typename U>
+[[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const optional<U> & rhs) {
+	return lhs.operator>=(rhs);
+}
+template <typename T, typename U>
+[[nodiscard]] constexpr bool operator>=(const std::optional<T> & lhs, const optional<U> & rhs) {
+	return rhs.operator<=(lhs);
+}
 
 #ifndef OPTIONAL_NO_QUICK_NULLOPT_RELOPS
 
@@ -732,6 +759,75 @@ template <typename T>
 	return !o.has_value();
 }
 #endif
+
+
+// [optional.comp_with_t]
+
+template <typename T, typename U>
+	requires eq_comparable<T, U>
+[[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const U & rhs) {
+	return lhs.operator==(rhs);
+}
+template <typename T, typename U>
+	requires eq_comparable<T, U>
+[[nodiscard]] constexpr bool operator==(const U & lhs, const optional<T> & rhs) {
+	return rhs.operator==(lhs);
+}
+
+template <typename T, not_optional U>
+	requires ne_comparable<T, U>
+[[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const U & rhs) {
+	return lhs.operator!=(rhs);
+}
+template <typename T, not_optional U>
+	requires ne_comparable<T, U>
+[[nodiscard]] constexpr bool operator!=(const U & lhs, const optional<T> & rhs) {
+	return rhs.operator!=(lhs);
+}
+
+template <typename T, not_optional U>
+	requires lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const U & rhs) {
+	return lhs.operator<(rhs);
+}
+template <typename T, not_optional U>
+	requires gt_comparable<T, U>
+[[nodiscard]] constexpr bool operator<(const U & lhs, const optional<T> & rhs) {
+	return rhs.operator>(lhs);
+}
+
+template <typename T, not_optional U>
+	requires gt_comparable<T, U>
+[[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const U & rhs) {
+	return lhs.operator>(rhs);
+}
+template <typename T, not_optional U>
+	requires lt_comparable<T, U>
+[[nodiscard]] constexpr bool operator>(const U & lhs, const optional<T> & rhs) {
+	return rhs.operator<(lhs);
+}
+
+template <typename T, not_optional U>
+	requires le_comparable<T, U>
+[[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const U & rhs) {
+	return lhs.operator<=(rhs);
+}
+template <typename T, not_optional U>
+	requires le_comparable<T, U>
+[[nodiscard]] constexpr bool operator<=(const U & lhs, const optional<T> & rhs) {
+	return rhs.operator>=(lhs);
+}
+
+template <typename T, not_optional U>
+	requires le_comparable<T, U>
+[[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const U & rhs) {
+	return lhs.operator>=(rhs);
+}
+template <typename T, not_optional U>
+	requires ge_comparable<T, U>
+[[nodiscard]] constexpr bool operator>=(const U & lhs, const optional<T> & rhs) {
+	return rhs.operator<=(lhs);
+}
 
 // [optional.specalg]
 template <typename T>
