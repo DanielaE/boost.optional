@@ -17,8 +17,6 @@
 
 using boost::optional;
 
-#if (!defined BOOST_OPTIONAL_DETAIL_NO_IS_CONSTRUCTIBLE_TRAIT)
-
 struct X {};
 struct Y {};
   
@@ -27,23 +25,19 @@ struct Resource
   explicit Resource(const X&) {}
 };
 
-BOOST_STATIC_ASSERT((  boost::is_constructible<Resource, const X&>::value ));
-BOOST_STATIC_ASSERT(( !boost::is_constructible<Resource, const Y&>::value ));
+static_assert(  std::is_constructible<Resource, const X&>::value );
+static_assert( !std::is_constructible<Resource, const Y&>::value );
 
-BOOST_STATIC_ASSERT((  boost::is_constructible<optional<Resource>, const X&>::value ));
-BOOST_STATIC_ASSERT(( !boost::is_constructible<optional<Resource>, const Y&>::value ));
+static_assert(  std::is_constructible<optional<Resource>, const X&>::value );
+static_assert( !std::is_constructible<optional<Resource>, const Y&>::value );
 
-#ifndef BOOST_OPTIONAL_DETAIL_NO_SFINAE_FRIENDLY_CONSTRUCTORS
-BOOST_STATIC_ASSERT((  boost::is_constructible< optional< optional<int> >, optional<int> >::value ));
-BOOST_STATIC_ASSERT(( !boost::is_constructible< optional<int>, optional< optional<int> > >::value ));
+static_assert(  std::is_constructible< optional< optional<int> >, optional<int> >::value );
+static_assert( !std::is_constructible< optional<int>, optional< optional<int> > >::value );
 
-BOOST_STATIC_ASSERT((  boost::is_constructible< optional< optional<int> >, const optional<int>& >::value ));
-BOOST_STATIC_ASSERT(( !boost::is_constructible< optional<int>, const optional< optional<int> >& >::value ));
+static_assert(  std::is_constructible< optional< optional<int> >, const optional<int>& >::value );
+static_assert( !std::is_constructible< optional<int>, const optional< optional<int> >& >::value );
 
-BOOST_STATIC_ASSERT((  boost::is_constructible<optional<Resource>, const optional<X>&>::value ));
-BOOST_STATIC_ASSERT(( !boost::is_constructible<optional<Resource>, const optional<Y>&>::value ));
-#endif
+static_assert(  std::is_constructible<optional<Resource>, const optional<X>&>::value );
+static_assert( !std::is_constructible<optional<Resource>, const optional<Y>&>::value );
   
-#endif
-
 int main() { }

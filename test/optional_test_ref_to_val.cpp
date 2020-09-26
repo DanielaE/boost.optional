@@ -62,8 +62,8 @@ void test_construct_from_optional_ref()
     BOOST_TEST_EQ (1, val(*opt_val1));
     BOOST_TEST_EQ (2, val(*opt_val2));
     
-    BOOST_TEST (boost::addressof(*opt_val1) != boost::addressof(v1));
-    BOOST_TEST (boost::addressof(*opt_val2) != boost::addressof(v2));
+    BOOST_TEST (std::addressof(*opt_val1) != std::addressof(v1));
+    BOOST_TEST (std::addressof(*opt_val2) != std::addressof(v2));
 }
 
 template <typename Tval, typename Tref>
@@ -89,8 +89,8 @@ void test_assign_from_optional_ref()
     BOOST_TEST_EQ (1, val(*opt_val1));
     BOOST_TEST_EQ (2, val(*opt_val2));
     
-    BOOST_TEST (boost::addressof(*opt_val1) != boost::addressof(v1));
-    BOOST_TEST (boost::addressof(*opt_val2) != boost::addressof(v2));
+    BOOST_TEST (std::addressof(*opt_val1) != std::addressof(v1));
+    BOOST_TEST (std::addressof(*opt_val2) != std::addressof(v2));
 }
 
 

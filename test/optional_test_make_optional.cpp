@@ -16,14 +16,13 @@
 #endif
 
 #include "boost/core/ignore_unused.hpp"
-#include "boost/core/is_same.hpp"
 #include "boost/core/lightweight_test.hpp"
 #include "boost/core/lightweight_test_trait.hpp"
 
 
 using boost::optional;
 using boost::make_optional;
-using boost::core::is_same;
+using std::is_same;
 
 template <typename Expected, typename Deduced>
 void verify_type(Deduced)
@@ -31,7 +30,6 @@ void verify_type(Deduced)
   BOOST_TEST_TRAIT_TRUE(( is_same<Expected, Deduced> ));
 }
   
-#if (!defined BOOST_OPTIONAL_DETAIL_NO_RVALUE_REFERENCES)
 struct MoveOnly
 {
   int value;
@@ -65,8 +63,6 @@ void test_make_optional_for_move_only_type()
   optional<MoveOnly> oN = make_optional(false, makeMoveOnly(2));
   BOOST_TEST (!oN);
 }
-
-#endif // !defined BOOST_OPTIONAL_DETAIL_NO_RVALUE_REFERENCES
 
 void test_make_optional_for_optional()
 {
@@ -111,9 +107,7 @@ void test_nested_make_optional()
 
 int main()
 {
-#if (!defined BOOST_OPTIONAL_DETAIL_NO_RVALUE_REFERENCES)
   test_make_optional_for_move_only_type();
-#endif
   test_make_optional_for_optional();
   test_nested_make_optional();
 
