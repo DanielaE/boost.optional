@@ -165,39 +165,50 @@ public:
 //	using base::optional;
 	[[nodiscard]] constexpr optional() noexcept = default;
 	[[nodiscard]] constexpr optional(const T & other) : base(other) {}
-	[[nodiscard]] constexpr optional(T && other) : base(std::forward<T>(other)) {}
-	template <typename U>
+	[[nodiscard]] constexpr optional(T && other) : base(static_cast<T &&>(other)) {}
+	template <not_optional U>
 		requires (!std::is_same_v<T, std::decay_t<U>>)
-	[[nodiscard]] constexpr optional(U && rhs) : base(std::forward<U>(rhs)) {}
+	[[nodiscard]] constexpr optional(U && rhs) : base(static_cast<U &&>(rhs)) {}
 
 	// assignment
 	optional & operator=(std::nullopt_t) noexcept {
 		return static_cast<optional &>(base::operator=(std::nullopt));
 	}
 
-	template <typename U = T>
-		requires requires(U && rhs) { base::operator=(std::forward<U>(rhs)); }
+	template <not_optional U = T>
+		requires requires(base lhs, U && rhs) { lhs = static_cast<U &&>(rhs); }
 	optional & operator=(U && rhs) {
-		return static_cast<optional &>(base::operator=(std::forward<U>(rhs)));
+		return static_cast<optional &>(base::operator=(static_cast<U &&>(rhs)));
 	}
 
 	template <typename U>
-		requires requires(const base_optional<U> & rhs) { base::operator=(rhs); }
+		requires (!std::is_reference_v<U> && requires(base lhs, const base_optional<U> & rhs) { lhs = rhs; })
 	optional & operator=(const optional<U> & rhs) {
 		return static_cast<optional &>(
 			base::operator=(static_cast<const base_optional<U> &>(rhs)));
 	}
 
 	template <typename U>
-		requires requires(base_optional<U> && rhs) { base::operator=(std::move(rhs)); }
+		requires requires(base lhs, const U & rhs) { lhs = rhs; }
+	optional & operator=(const optional<U &> & rhs) {
+		return static_cast<optional &>(rhs ? base::operator=(*rhs) : base::operator=(std::nullopt));
+	}
+
+	template <typename U>
+		requires (!std::is_reference_v<U> && requires(base lhs, base_optional<U> && rhs) { lhs = static_cast<base_optional<U> &&>(rhs); })
 	optional & operator=(optional<U> && rhs) {
 		return static_cast<optional &>(
 			base::operator=(static_cast<base_optional<U> &&>(rhs)));
 	}
+	template <typename U>
+		requires requires(base lhs, const U & rhs) { lhs = rhs; }
+	optional & operator=(optional<U &> && rhs) {
+	    return static_cast<optional &>( rhs ? base::operator=(*rhs) : base::operator=(std::nullopt));
+	}
 
 	// conversion from base
 	constexpr optional(const base & from) : base(from) {}
-	constexpr optional(base && from) noexcept : base(std::move(from)) {}
+	constexpr optional(base && from) noexcept : base(static_cast<base &&>(from)) {}
 
 	// non-standard additional Boost interfaces
 
@@ -213,29 +224,28 @@ public:
 	constexpr optional(bool condition, const T & other)
 	: base{ condition ? base(other) : base{} } {}
 	constexpr optional(bool condition, T && other)
-	: base{ condition ? base(std::forward<T>(other)) : base{} } {}
+	: base{ condition ? base(static_cast<T &&>(other)) : base{} } {}
 
 	template <class... Args>
 	constexpr optional(in_place_init_if_t, bool condition, Args &&... args)
-	: base{ condition ? base(std::in_place, std::forward<Args>(args)...) : base{} } {}
+	: base{ condition ? base(std::in_place, static_cast<Args &&>(args)...) : base{} } {}
 
 	template <typename Factory>
 		requires is_inplace_factory<Factory>
 	explicit optional(Factory && f)
-	: base(std::in_place, construct_by(std::forward<Factory>(f))) {}
+	: base(std::in_place, construct_by(static_cast<Factory &&>(f))) {}
 
 	// assignment
 	template <typename Factory>
 		requires is_inplace_factory<Factory>
 	optional<T> & operator=(Factory && f) {
 		if (*this) {
-			void * pstorage = this->operator->();
 			if constexpr (std::is_convertible_v<Factory *, ::boost::in_place_factory_base *>)
-				f.template apply<T>(pstorage);
+				f.template apply<T>(this->operator->());
 			else
-				f.apply(pstorage);
+				f.apply(this->operator->());
 		} else {
-			this->emplace(construct_by(std::forward<Factory>(f)));
+			this->emplace(construct_by(static_cast<Factory &&>(f)));
 		}
 		return *this;
 	}
@@ -275,7 +285,7 @@ public:
 	[[nodiscard]] constexpr optional<std::invoke_result_t<Func, T &&>>
 	map(Func f) && {
 		if (this->has_value())
-			return f(std::move(**this));
+			return f(static_cast<T &&>(**this));
 		return none;
 	}
 
@@ -302,7 +312,7 @@ public:
 		optional<unwrap_t<std::invoke_result_t<Func, T &&>>>
 	flat_map(Func f) && {
 		if (this->has_value())
-			return f(std::move(**this));
+			return f(static_cast<T &&>(**this));
 		return none;
 	}
 
@@ -319,7 +329,7 @@ public:
 	}
 	template <class Func>
 	[[nodiscard]] constexpr T & value_or_eval(Func f) && {
-		return this->has_value()? std::move(**this) : f();
+		return this->has_value()? static_cast<T &&>(**this) : f();
 	}
 
 	// modifiers
@@ -346,9 +356,9 @@ class optional<T &> {
 	};
 
 	template <typename U>
-	constexpr std::remove_reference_t<U> & forward_reference(U && r) {
+	constexpr decltype(auto) forward_reference(U && r) {
 		taint_rvalue<U>{};
-		return std::forward<U>(r);
+		return static_cast<U &&>(r);
 	}
 
 	T * p_ = nullptr;
@@ -797,7 +807,11 @@ constexpr void swap(optional<T &> & lhs, optional<T &> & rhs) noexcept {
 	lhs.swap(rhs);
 }
 
-template <typename T>
+template <not_optional T>
+[[nodiscard]] constexpr optional<std::decay_t<T>> make_optional(T && value) {
+	return optional<std::decay_t<T>>{ std::forward<T>(value) };
+}
+template <optional_type T>
 [[nodiscard]] constexpr optional<std::decay_t<T>> make_optional(T && value) {
 	return optional<std::decay_t<T>>{ std::forward<T>(value) };
 }
