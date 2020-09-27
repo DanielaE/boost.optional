@@ -53,8 +53,13 @@ using optional_ns::in_place_init_if_t;
 using optional_ns::in_place_init_t;
 
 using bad_optional_access = std::bad_optional_access;
-using none_t              = std::nullopt_t;
 
+#ifndef OPTIONAL_NONE_T_CPP20
+#define OPTIONAL_NONE_T_CPP20
+struct none_t : std::nullopt_t {
+	constexpr none_t(std::nullopt_t) : std::nullopt_t{std::nullopt} {}
+};
+#endif
 #ifndef OPTIONAL_NONE_CPP20
 #define OPTIONAL_NONE_CPP20
 inline constexpr none_t none{ std::nullopt };
@@ -164,13 +169,20 @@ public:
 	// construction
 //	using base::optional;
 	[[nodiscard]] constexpr optional() noexcept = default;
+	[[nodiscard]] constexpr optional(boost::none_t) noexcept {};
+	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {};
 	[[nodiscard]] constexpr optional(const T & other) : base(other) {}
 	[[nodiscard]] constexpr optional(T && other) : base(static_cast<T &&>(other)) {}
 	template <not_optional U>
 		requires (!std::is_same_v<T, std::decay_t<U>>)
 	[[nodiscard]] constexpr optional(U && rhs) : base(static_cast<U &&>(rhs)) {}
+    template <typename U>
+	[[nodiscard]] constexpr optional(const optional<U &> & rhs) : base(rhs ? base{*rhs} : base{}) {}
 
 	// assignment
+	optional & operator=(boost::none_t) noexcept {
+		return static_cast<optional &>(base::operator=(std::nullopt));
+	}
 	optional & operator=(std::nullopt_t) noexcept {
 		return static_cast<optional &>(base::operator=(std::nullopt));
 	}
@@ -210,8 +222,8 @@ public:
 	}
 
 	// conversion from base
-	constexpr optional(const base & from) : base(from) {}
-	constexpr optional(base && from) noexcept : base(static_cast<base &&>(from)) {}
+	[[nodiscard]] constexpr optional(const base & from) : base(from) {}
+	[[nodiscard]] constexpr optional(base && from) noexcept : base(static_cast<base &&>(from)) {}
 
 	// non-standard additional Boost interfaces
 
@@ -369,6 +381,7 @@ class optional<T &> {
 public:
 	// construction
 	[[nodiscard]] constexpr optional() noexcept = default;
+	[[nodiscard]] constexpr optional(none_t) noexcept {}
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {}
 	[[nodiscard]] constexpr optional(const optional & other) noexcept = default;
 	[[nodiscard]] constexpr optional(optional && other) noexcept      = default;
@@ -391,6 +404,10 @@ public:
 	constexpr optional & operator=(const optional & rhs) noexcept = default;
 	constexpr optional & operator=(optional && rhs) noexcept = default;
 
+	constexpr optional & operator=(boost::none_t) noexcept {
+		p_ = nullptr;
+		return *this;
+	}
 	constexpr optional & operator=(std::nullopt_t) noexcept {
 		p_ = nullptr;
 		return *this;

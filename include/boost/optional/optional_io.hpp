@@ -9,14 +9,11 @@
 // You are welcome to contact the author at:
 //  fernando_cacciola@hotmail.com
 //
-#ifndef BOOST_OPTIONAL_OPTIONAL_IO_FLC_19NOV2002_HPP
-#define BOOST_OPTIONAL_OPTIONAL_IO_FLC_19NOV2002_HPP
-
+#pragma once
 #include <istream>
 #include <ostream>
 
-#include "boost/none.hpp"
-#include "boost/optional/optional.hpp"
+#include "optional.hpp"
 
 
 namespace boost
@@ -25,7 +22,7 @@ namespace boost
 template<class CharType, class CharTrait>
 inline
 std::basic_ostream<CharType, CharTrait>&
-operator<<(std::basic_ostream<CharType, CharTrait>& out, none_t)
+operator<<(std::basic_ostream<CharType, CharTrait>& out, boost::none_t)
 {
   if (out.good())
   {
@@ -85,6 +82,3 @@ operator>>(std::basic_istream<CharType, CharTrait>& in, optional<T>& v)
 }
 
 } // namespace boost
-
-#endif
-

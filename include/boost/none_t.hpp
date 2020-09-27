@@ -10,15 +10,18 @@
 // You are welcome to contact the author at:
 //  fernando_cacciola@hotmail.com
 //
-#ifndef BOOST_NONE_T_CPP20
-#define BOOST_NONE_T_CPP20
-
+#pragma once
 #include <optional>
+
+#ifndef OPTIONAL_NONE_T_CPP20
+#define OPTIONAL_NONE_T_CPP20
 
 namespace boost {
 
-using none_t = std::nullopt_t;
+struct none_t : std::nullopt_t {
+	constexpr none_t(std::nullopt_t) : std::nullopt_t{std::nullopt} {}
+};
 
 } // namespace boost
 
-#endif // header guard
+#endif
