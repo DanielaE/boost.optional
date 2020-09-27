@@ -175,17 +175,26 @@ public:
 		return static_cast<optional &>(base::operator=(std::nullopt));
 	}
 
-	template <not_optional U = T>
-		requires requires(base lhs, U && rhs) { lhs = static_cast<U &&>(rhs); }
+	template <typename U = T>
+		requires (!std::is_same_v<optional, std::remove_cvref_t<U>> && 
+		          !(std::is_scalar_v<T> && std::is_same_v<T, std::decay_t<U>>) && 
+		          std::is_constructible_v<T, U> && std::is_assignable_v<T&, U>)
 	optional & operator=(U && rhs) {
 		return static_cast<optional &>(base::operator=(static_cast<U &&>(rhs)));
 	}
 
 	template <typename U>
-		requires (!std::is_reference_v<U> && requires(base lhs, const base_optional<U> & rhs) { lhs = rhs; })
-	optional & operator=(const optional<U> & rhs) {
+		requires (!std::is_reference_v<U> && std::is_assignable_v<base_optional<T>, const base_optional<U> &>)
+	optional & operator=(const base_optional<U> & rhs) {
 		return static_cast<optional &>(
-			base::operator=(static_cast<const base_optional<U> &>(rhs)));
+			base::operator=(rhs));
+	}
+
+	template <typename U>
+		requires (!std::is_reference_v<U> && std::is_assignable_v<base_optional<T>, base_optional<U> &&>)
+	optional & operator=(base_optional<U> && rhs) {
+		return static_cast<optional &>(
+			base::operator=(static_cast<base_optional<U> &&>(rhs)));
 	}
 
 	template <typename U>
@@ -194,12 +203,6 @@ public:
 		return static_cast<optional &>(rhs ? base::operator=(*rhs) : base::operator=(std::nullopt));
 	}
 
-	template <typename U>
-		requires (!std::is_reference_v<U> && requires(base lhs, base_optional<U> && rhs) { lhs = static_cast<base_optional<U> &&>(rhs); })
-	optional & operator=(optional<U> && rhs) {
-		return static_cast<optional &>(
-			base::operator=(static_cast<base_optional<U> &&>(rhs)));
-	}
 	template <typename U>
 		requires requires(base lhs, const U & rhs) { lhs = rhs; }
 	optional & operator=(optional<U &> && rhs) {
