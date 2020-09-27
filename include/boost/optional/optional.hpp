@@ -182,7 +182,7 @@ public:
 	[[nodiscard]] constexpr optional(const T & other) : base(other) {}
 	[[nodiscard]] constexpr optional(T && other) : base(static_cast<T &&>(other)) {}
 	template <not_optional U>
-		requires (!std::is_same_v<T, std::decay_t<U>>)
+		requires (!std::is_same_v<T, std::decay_t<U>> && !inplace_factory_type<U>)
 	[[nodiscard]] constexpr optional(U && rhs) : base(static_cast<U &&>(rhs)) {}
     template <typename U>
 	[[nodiscard]] constexpr optional(const optional<U &> & rhs) : base(rhs ? base{*rhs} : base{}) {}
