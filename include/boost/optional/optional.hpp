@@ -92,7 +92,7 @@ concept constructible =
 	std::is_same_v<T, const std::remove_reference_t<U>>;
 
 template <typename T>
-concept is_inplace_factory =
+concept inplace_factory_type =
 	std::is_base_of_v<in_place_factory_base, std::decay_t<T>> ||
 	std::is_base_of_v<typed_in_place_factory_base, std::decay_t<T>>;
 
@@ -152,18 +152,26 @@ class optional : public base_optional<T> {
 	using base = base_optional<T>;
 
 	template <typename Factory>
-	struct construct_by {
-		construct_by(Factory && f) : f_{ std::addressof(f) } {}
-		operator T() const noexcept {
-			alignas(T) char storage[sizeof(T)];
-			if constexpr (std::is_convertible_v<Factory *, ::boost::in_place_factory_base *>)
-				f_->template apply<T>(&storage);
-			else
-				f_->apply(&storage);
-			return *std::launder(reinterpret_cast<T*>(&storage));
-		}
-		Factory * f_;
-	};
+	void construct_at(void * storage, Factory && f) {
+		if constexpr (std::is_convertible_v<Factory *, ::boost::in_place_factory_base *>)
+			f->template apply<T>(storage);
+		else
+			f->apply(storage);
+	}
+
+	template <typename Factory>
+	T make_from(Factory && f) {
+		alignas(T) char storage[sizeof(T)];
+		construct_at(storage, static_cast<Factory &&>(f));
+		return *std::launder(reinterpret_cast<T*>(&storage));
+	}
+
+	template <typename Factory>
+	void replace_from(Factory && f) {
+		T * pstorage = this->operator->();
+		pstorage->~T();
+		construct_at(pstorage, static_cast<Factory &&>(f));
+	}
 
 public:
 	// construction
@@ -245,22 +253,29 @@ public:
 	constexpr optional(in_place_init_if_t, bool condition, Args &&... args)
 	: base{ condition ? base(std::in_place, static_cast<Args &&>(args)...) : base{} } {}
 
-	template <typename Factory>
-		requires is_inplace_factory<Factory>
+	template <inplace_factory_type Factory>
+		requires std::is_default_constructible_v<T>
 	explicit optional(Factory && f)
-	: base(std::in_place, construct_by(static_cast<Factory &&>(f))) {}
+	: base(std::in_place) {
+		replace_from(static_cast<Factory &&>(f));
+	}
+	template <inplace_factory_type Factory>
+		requires (!std::is_default_constructible_v<T>)
+	explicit optional(Factory && f)
+	: base(std::in_place, make_from(static_cast<Factory &&>(f))) {}
 
 	// assignment
-	template <typename Factory>
-		requires is_inplace_factory<Factory>
+	template <inplace_factory_type Factory>
 	optional<T> & operator=(Factory && f) {
 		if (*this) {
-			if constexpr (std::is_convertible_v<Factory *, ::boost::in_place_factory_base *>)
-				f.template apply<T>(this->operator->());
-			else
-				f.apply(this->operator->());
+			replace_from(static_cast<Factory &&>(f));
 		} else {
-			this->emplace(construct_by(static_cast<Factory &&>(f)));
+			if constexpr (std::is_default_constructible_v<T>) {
+				this->emplace();
+				replace_from(static_cast<Factory &&>(f));
+			} else {
+				this->emplace(make_from(static_cast<Factory &&>(f)));
+			}
 		}
 		return *this;
 	}
@@ -695,6 +710,14 @@ template <typename T>
 [[nodiscard]] constexpr bool operator==(std::nullopt_t, const optional<T> & o) noexcept {
 	return !o.has_value();
 }
+template <typename T>
+[[nodiscard]] constexpr bool operator==(const optional<T> & o, none_t) noexcept {
+	return !o.has_value();
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator==(none_t, const optional<T> & o) noexcept {
+	return !o.has_value();
+}
 
 template <typename T>
 [[nodiscard]] constexpr bool operator!=(const optional<T> & o, std::nullopt_t) noexcept {
@@ -702,6 +725,14 @@ template <typename T>
 }
 template <typename T>
 [[nodiscard]] constexpr bool operator!=(std::nullopt_t, const optional<T> & o) noexcept {
+	return o.has_value();
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator!=(const optional<T> & o, none_t) noexcept {
+	return o.has_value();
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator!=(none_t, const optional<T> & o) noexcept {
 	return o.has_value();
 }
 
@@ -713,6 +744,14 @@ template <typename T>
 [[nodiscard]] constexpr bool operator<(std::nullopt_t, const optional<T> & o) noexcept {
 	return o.has_value();
 }
+template <typename T>
+[[nodiscard]] constexpr bool operator<(const optional<T> &, none_t) noexcept {
+	return false;
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator<(none_t, const optional<T> & o) noexcept {
+	return o.has_value();
+}
 
 template <typename T>
 [[nodiscard]] constexpr bool operator>(const optional<T> & o, std::nullopt_t) noexcept {
@@ -720,6 +759,14 @@ template <typename T>
 }
 template <typename T>
 [[nodiscard]] constexpr bool operator>(std::nullopt_t, const optional<T> &) noexcept {
+	return false;
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator>(const optional<T> & o, none_t) noexcept {
+	return o.has_value();
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator>(none_t, const optional<T> &) noexcept {
 	return false;
 }
 
@@ -731,6 +778,14 @@ template <typename T>
 [[nodiscard]] constexpr bool operator<=(std::nullopt_t, const optional<T> &) noexcept {
 	return true;
 }
+template <typename T>
+[[nodiscard]] constexpr bool operator<=(const optional<T> & o, none_t) noexcept {
+	return !o.has_value();
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator<=(none_t, const optional<T> &) noexcept {
+	return true;
+}
 
 template <typename T>
 [[nodiscard]] constexpr bool operator>=(const optional<T> &, std::nullopt_t) noexcept {
@@ -740,9 +795,21 @@ template <typename T>
 [[nodiscard]] constexpr bool operator>=(std::nullopt_t, const optional<T> & o) noexcept {
 	return !o.has_value();
 }
+template <typename T>
+[[nodiscard]] constexpr bool operator>=(const optional<T> &, none_t) noexcept {
+	return true;
+}
+template <typename T>
+[[nodiscard]] constexpr bool operator>=(none_t, const optional<T> & o) noexcept {
+	return !o.has_value();
+}
 
 template <typename T>
 [[nodiscard]] constexpr std::strong_ordering operator<=>(const optional<T> & o, std::nullopt_t) noexcept {
+	return o.has_value() <=> false;
+}
+template <typename T>
+[[nodiscard]] constexpr std::strong_ordering operator<=>(const optional<T> & o, none_t) noexcept {
 	return o.has_value() <=> false;
 }
 
