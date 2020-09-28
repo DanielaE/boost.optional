@@ -354,11 +354,11 @@ public:
 	}
 
 	template <class Func>
-	[[nodiscard]] constexpr T & value_or_eval(Func f) const & {
+	[[nodiscard]] constexpr T value_or_eval(Func f) const & {
 		return this->has_value()? **this : f();
 	}
 	template <class Func>
-	[[nodiscard]] constexpr T & value_or_eval(Func f) && {
+	[[nodiscard]] constexpr T value_or_eval(Func f) && {
 		return this->has_value()? static_cast<T &&>(**this) : f();
 	}
 
