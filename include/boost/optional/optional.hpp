@@ -154,16 +154,16 @@ class optional : public base_optional<T> {
 	template <typename Factory>
 	void construct_at(void * storage, Factory && f) {
 		if constexpr (std::is_convertible_v<Factory *, ::boost::in_place_factory_base *>)
-			f->template apply<T>(storage);
+			f.template apply<T>(storage);
 		else
-			f->apply(storage);
+			f.apply(storage);
 	}
 
 	template <typename Factory>
 	T make_from(Factory && f) {
 		alignas(T) char storage[sizeof(T)];
 		construct_at(storage, static_cast<Factory &&>(f));
-		return *std::launder(reinterpret_cast<T*>(&storage));
+		return static_cast<T &&>(*std::launder(reinterpret_cast<T*>(storage)));
 	}
 
 	template <typename Factory>
