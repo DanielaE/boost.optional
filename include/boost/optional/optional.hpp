@@ -172,9 +172,7 @@ class optional : public base_optional<T> {
 
 public:
 	// construction
-//	using base::optional;
 	[[nodiscard]] constexpr optional() noexcept = default;
-//	[[nodiscard]] constexpr optional(boost::none_t) noexcept {};
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {};
 	[[nodiscard]] constexpr optional(const T & other) : base(other) {}
 	[[nodiscard]] constexpr optional(T && other) : base(static_cast<T &&>(other)) {}
@@ -183,11 +181,16 @@ public:
 	[[nodiscard]] constexpr optional(U && rhs) : base(static_cast<U &&>(rhs)) {}
     template <typename U>
 	[[nodiscard]] constexpr optional(const optional<U &> & rhs) : base(rhs ? base{*rhs} : base{}) {}
+	template <class... Args>
+		requires std::is_constructible_v<T, Args...>
+	[[nodiscard]] constexpr optional(std::in_place_t, Args &&... args)
+	: base{ std::in_place, static_cast<Args &&>(args)... } {}
+	template <typename U, class... Args>
+		requires std::is_constructible_v<T, std::initializer_list<U> &, Args &&...>
+	[[nodiscard]] constexpr optional(std::in_place_t, std::initializer_list<U> il, Args &&... args)
+	: base{ std::in_place, il, static_cast<Args &&>(args)... } {}
 
 	// assignment
-//	optional & operator=(boost::none_t) noexcept {
-//		return static_cast<optional &>(base::operator=(std::nullopt));
-//	}
 	optional & operator=(std::nullopt_t) noexcept {
 		return static_cast<optional &>(base::operator=(std::nullopt));
 	}
@@ -394,7 +397,6 @@ class optional<T &> {
 public:
 	// construction
 	[[nodiscard]] constexpr optional() noexcept = default;
-//	[[nodiscard]] constexpr optional(none_t) noexcept {}
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {}
 	[[nodiscard]] constexpr optional(const optional & other) noexcept = default;
 	[[nodiscard]] constexpr optional(optional && other) noexcept      = default;
@@ -417,10 +419,6 @@ public:
 	constexpr optional & operator=(const optional & rhs) noexcept = default;
 	constexpr optional & operator=(optional && rhs) noexcept = default;
 
-//	constexpr optional & operator=(boost::none_t) noexcept {
-//		p_ = nullptr;
-//		return *this;
-//	}
 	constexpr optional & operator=(std::nullopt_t) noexcept {
 		p_ = nullptr;
 		return *this;
