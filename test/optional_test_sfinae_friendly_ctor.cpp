@@ -25,19 +25,19 @@ struct Resource
   explicit Resource(const X&) {}
 };
 
-static_assert(  std::is_constructible<Resource, const X&>::value );
-static_assert( !std::is_constructible<Resource, const Y&>::value );
+static_assert(  std::is_constructible_v<Resource, const X&> );
+static_assert( !std::is_constructible_v<Resource, const Y&> );
 
-static_assert(  std::is_constructible<optional<Resource>, const X&>::value );
-static_assert( !std::is_constructible<optional<Resource>, const Y&>::value );
+static_assert(  std::is_constructible_v<optional<Resource>, const X&> );
+static_assert( !std::is_constructible_v<optional<Resource>, const Y&> || std::is_constructible_v<std::optional<Resource>, const Y&>);
 
-static_assert(  std::is_constructible< optional< optional<int> >, optional<int> >::value );
-static_assert( !std::is_constructible< optional<int>, optional< optional<int> > >::value );
+static_assert(  std::is_constructible_v< optional< optional<int> >, optional<int> > );
+static_assert( !std::is_constructible_v< optional<int>, optional< optional<int> > > );
 
-static_assert(  std::is_constructible< optional< optional<int> >, const optional<int>& >::value );
-static_assert( !std::is_constructible< optional<int>, const optional< optional<int> >& >::value );
+static_assert(  std::is_constructible_v< optional< optional<int> >, const optional<int>& > );
+static_assert( !std::is_constructible_v< optional<int>, const optional< optional<int> >& > );
 
-static_assert(  std::is_constructible<optional<Resource>, const optional<X>&>::value );
-static_assert( !std::is_constructible<optional<Resource>, const optional<Y>&>::value );
+static_assert(  std::is_constructible_v<optional<Resource>, const optional<X>&> || !std::is_constructible_v<std::optional<Resource>, const optional<X>&>);
+static_assert( !std::is_constructible_v<optional<Resource>, const optional<Y>&> );
   
 int main() { }
