@@ -74,9 +74,11 @@ concept optional_type = decltype(optional_tag((std::remove_reference_t<T> *)null
 template <typename T>
 concept not_optional = !optional_type<T>;
 template <typename T>
-concept nullopt_type = std::is_base_of_v<std::nullopt_t, std::remove_cvref_t<T>>
+concept nullopt_type = std::is_base_of_v<std::nullopt_t, std::remove_cvref_t<T>>;
 template <typename T>
-concept optional_related = nullopt_type<T> || optional_type<T>
+concept optional_related = nullopt_type<T> || optional_type<T>;
+template <typename T>
+concept not_optional_related = !optional_related<T>;
 
 template <typename T>
 using unwrap_t = std::conditional_t<optional_type<T>,
@@ -252,7 +254,7 @@ public:
 
 	template <class... Args>
 	constexpr optional(in_place_init_if_t, bool condition, Args &&... args)
-	: base{ condition ? base(std::in_place, static_cast<Args &&>(args)...) : base{} } {}
+	: base{} { if (condition) this->emplace(static_cast<Args &&>(args)...); }
 
 	template <inplace_factory_type Factory>
 		requires std::is_default_constructible_v<T>
@@ -397,6 +399,7 @@ class optional<T &> {
 public:
 	// construction
 	[[nodiscard]] constexpr optional() noexcept = default;
+	[[nodiscard]] constexpr optional(none_t) noexcept {}
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {}
 	[[nodiscard]] constexpr optional(const optional & other) noexcept = default;
 	[[nodiscard]] constexpr optional(optional && other) noexcept      = default;
