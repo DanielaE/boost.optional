@@ -8,8 +8,16 @@
 #include <compare>
 
 #define DEPRECATED // [[deprecated]]
+#ifdef __cpp_consteval
+#define CONSTEVAL consteval
+#else
 #define CONSTEVAL constexpr
+#endif
+#ifdef __cpp_consteval
+#define CONSTINIT constinit
+#else
 #define CONSTINIT inline constexpr
+#endif
 
 #if !defined(OPTIONAL_THREE_WAY) && defined(__cpp_impl_three_way_comparison)
 #define OPTIONAL_THREE_WAY
@@ -175,39 +183,47 @@ class optional : public base_optional<T> {
 	}
 
 public:
-	// construction
+	//[optional.object.ctor]
 	[[nodiscard]] constexpr optional() noexcept = default;
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {};
-	[[nodiscard]] constexpr optional(const T & other) : base{ other } {}
-	[[nodiscard]] constexpr optional(T && other) : base{ static_cast<T &&>(other) } {}
-
-	template <not_optional_related U>
-		requires (!std::is_same_v<T, std::decay_t<U>> && !inplace_factory_type<U> && std::is_constructible_v<T, U>)
-	[[nodiscard]] constexpr explicit(!is_convertible_v<U, T>) optional(U && other) : base{ static_cast<U &&>(other) } {}
-
-	template <typename U>
-		requires (!std::is_reference_v<U> && !(std::is_same_v<T, U> || std::is_constructible_v<T, optional<U> &> || std::is_constructible_v<T, const optional<U> &> || std::is_constructible_v<T, const optional<U>> || std::is_constructible_v<T, optional<U>>
-		          || std::is_convertible_v<optional<U> &, T> || std::is_convertible_v<const optional<U> &, T> || std::is_convertible_v<const optional<U>, T> || std::is_convertible_v<optional<U>, T>))
-	[[nodiscard]] explicit(!is_convertible_v<U, T>) optional(const optional<U> & other) : base{ other } {}
-
-	template <typename U>
-		requires (!std::is_reference_v<U> && !(std::is_same_v<T, U> || std::is_constructible_v<T, optional<U> &> || std::is_constructible_v<T, const optional<U> &> || std::is_constructible_v<T, const optional<U>> || std::is_constructible_v<T, optional<U>>
-		          || std::is_convertible_v<optional<U> &, T> || std::is_convertible_v<const optional<U> &, T> || std::is_convertible_v<const optional<U>, T> || std::is_convertible_v<optional<U>, T>))
-	[[nodiscard]] explicit(!is_convertible_v<U, T>) optional(optional<U> && other) : base{ static_cast<base_optional<U> &&>(other) } {}
-
-    template <typename U>
-		requires std::is_constructible_v<T, U>
-	[[nodiscard]] constexpr explicit(!is_convertible_v<U, T>) optional(const optional<U &> & other) : base{ other ? base{*other} : base{} } {}
-
+	
 	template <class... Args>
 		requires std::is_constructible_v<T, Args...>
 	[[nodiscard]] constexpr explicit optional(std::in_place_t, Args &&... args)
 	: base{ std::in_place, static_cast<Args &&>(args)... } {}
 
+//	constexpr optional(const optional & other) : base{ other } {}
+//	constexpr optional(optional && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<base &&>(other) } {}
+	
 	template <typename U, class... Args>
 		requires std::is_constructible_v<T, std::initializer_list<U> &, Args &&...>
 	[[nodiscard]] constexpr optional(std::in_place_t, std::initializer_list<U> il, Args &&... args)
 	: base{ std::in_place, il, static_cast<Args &&>(args)... } {}
+
+	template <not_optional_related U>
+		requires (!std::is_same_v<T, std::decay_t<U>> && !inplace_factory_type<U> && std::is_constructible_v<T, U>)
+	[[nodiscard]] constexpr explicit(!is_convertible_v<U, T>) optional(U && other) : base{ static_cast<U &&>(other) } {}
+
+    template <typename U>
+		requires std::is_constructible_v<T, U>
+	[[nodiscard]] constexpr explicit(!is_convertible_v<U, T>) optional(const optional<U &> & other) : base{ other ? base{*other} : base{} } {}
+	template <typename U>
+		requires (!std::is_reference_v<U> &&
+		          !std::is_same_v<T, U> &&
+		          !(std::is_constructible_v<T, optional<U> &> || std::is_constructible_v<T, const optional<U> &> || std::is_constructible_v<T, const optional<U>> || std::is_constructible_v<T, optional<U>>
+		          || std::is_convertible_v<optional<U> &, T> || std::is_convertible_v<const optional<U> &, T> || std::is_convertible_v<const optional<U>, T> || std::is_convertible_v<optional<U>, T>))
+	[[nodiscard]] explicit(!is_convertible_v<U, T>) optional(const optional<U> & other) : base{ other } {}
+
+	template <typename U>
+		requires (!std::is_reference_v<U> &&
+		          !std::is_same_v<T, U> &&
+		          !(std::is_constructible_v<T, optional<U> &> || std::is_constructible_v<T, const optional<U> &> || std::is_constructible_v<T, const optional<U>> || std::is_constructible_v<T, optional<U>>
+		          || std::is_convertible_v<optional<U> &, T> || std::is_convertible_v<const optional<U> &, T> || std::is_convertible_v<const optional<U>, T> || std::is_convertible_v<optional<U>, T>))
+	[[nodiscard]] explicit(!is_convertible_v<U, T>) optional(optional<U> && other) : base{ static_cast<base_optional<U> &&>(other) } {}
+
+	// construction
+	[[nodiscard]] constexpr optional(const T & other) : base{ other } {}
+	[[nodiscard]] constexpr optional(T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<T &&>(other) } {}
 
 	// assignment
 	optional & operator=(std::nullopt_t) noexcept {
