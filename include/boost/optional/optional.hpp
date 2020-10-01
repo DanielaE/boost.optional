@@ -221,10 +221,6 @@ public:
 		          || std::is_convertible_v<optional<U> &, T> || std::is_convertible_v<const optional<U> &, T> || std::is_convertible_v<const optional<U>, T> || std::is_convertible_v<optional<U>, T>))
 	[[nodiscard]] explicit(!is_convertible_v<U, T>) optional(optional<U> && other) : base{ static_cast<base_optional<U> &&>(other) } {}
 
-	// construction
-	[[nodiscard]] constexpr optional(const T & other) : base{ other } {}
-	[[nodiscard]] constexpr optional(T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<T &&>(other) } {}
-
 	// assignment
 	optional & operator=(std::nullopt_t) noexcept {
 		return static_cast<optional &>(base::operator=(std::nullopt));
@@ -280,9 +276,12 @@ public:
 	using argument_type        = T const &;
 
 	// construction
-	constexpr optional(bool condition, const T & other)
+	[[nodiscard]] constexpr optional(const T & other) : base{ other } {}
+	[[nodiscard]] constexpr optional(T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<T &&>(other) } {}
+
+	[[nodiscard]] constexpr optional(bool condition, const T & other)
 	: base{ condition ? base(other) : base{} } {}
-	constexpr optional(bool condition, T && other)
+	[[nodiscard]] constexpr optional(bool condition, T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T>
 	: base{ condition ? base(static_cast<T &&>(other)) : base{} } {}
 
 	template <class... Args>
@@ -873,20 +872,20 @@ constexpr void swap(optional<T &> & lhs, optional<T &> & rhs) noexcept {
 
 template <not_optional T>
 [[nodiscard]] constexpr optional<std::decay_t<T>> make_optional(T && value) {
-	return optional<std::decay_t<T>>{ std::forward<T>(value) };
+	return optional<std::decay_t<T>>{ static_cast<T &&>(value) };
 }
 template <optional_type T>
 [[nodiscard]] constexpr optional<std::decay_t<T>> make_optional(T && value) {
-	return optional<std::decay_t<T>>{ std::forward<T>(value) };
+	return optional<std::decay_t<T>>{ static_cast<T &&>(value) };
 }
 template <typename T, typename... Args>
 [[nodiscard]] constexpr optional<T> make_optional(Args &&... args) {
-	return optional<T>{ std::in_place, std::forward<Args>(args)... };
+	return optional<T>{ std::in_place, static_cast<Args &&>(args)... };
 }
 template <typename T, typename E, typename... Args>
 [[nodiscard]] constexpr optional<T>
 make_optional(std::initializer_list<E> list, Args &&... args) {
-	return optional<T>{ std::in_place, list, std::forward<Args>(args)... };
+	return optional<T>{ std::in_place, list, static_cast<Args &&>(args)... };
 }
 
 template <class T>
@@ -908,7 +907,7 @@ using const_pointer_t = typename optional<T>::pointer_const_type;
 template <typename T>
 [[nodiscard]] constexpr optional<std::decay_t<T>>
 make_optional(bool condition, T && v) {
-	return optional<std::decay_t<T>>(condition, std::forward<T>(v));
+	return optional<std::decay_t<T>>(condition, static_cast<T &&>(v));
 }
 
 template <typename T>
