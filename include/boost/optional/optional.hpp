@@ -31,7 +31,7 @@ namespace boost {
 class in_place_factory_base;
 class typed_in_place_factory_base;
 
-template<class T>
+template <typename T>
 struct optional_swap_should_use_default_constructor;
 } // namespace boost
 
@@ -90,7 +90,7 @@ using unwrap_t = std::conditional_t<optional_type<T>,
 	typename std::remove_reference_t<T>::value_type,
 	typename std::remove_reference_t<T>>;
 
-template <class T, class U>
+template <typename T, typename U>
 concept constructible =
 	std::is_same_v<T, std::remove_reference_t<U>> ||
 	std::is_same_v<T, const std::remove_reference_t<U>>;
@@ -248,7 +248,7 @@ public:
 	[[nodiscard]] constexpr optional() noexcept = default;
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {};
 	
-	template <class... Args>
+	template <typename... Args>
 		requires std::is_constructible_v<T, Args...>
 	[[nodiscard]] constexpr explicit optional(std::in_place_t, Args &&... args)
 	: base{ std::in_place, static_cast<Args &&>(args)... } {}
@@ -256,13 +256,13 @@ public:
 //	constexpr optional(const optional & other) : base{ other } {}
 //	constexpr optional(optional && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<base &&>(other) } {}
 	
-	template <typename U, class... Args>
+	template <typename U, typename... Args>
 		requires std::is_constructible_v<T, std::initializer_list<U> &, Args &&...>
 	[[nodiscard]] constexpr optional(std::in_place_t, std::initializer_list<U> il, Args &&... args)
 	: base{ std::in_place, il, static_cast<Args &&>(args)... } {}
 
-	template <dtl::not_optional_related U>
-		requires (!std::is_same_v<T, std::decay_t<U>> && !dtl::inplace_factory_type<U> && std::is_constructible_v<T, U>)
+	template <typename U>
+		requires (dtl::not_optional_related<U> && !std::is_same_v<T, std::decay_t<U>> && !dtl::inplace_factory_type<U> && std::is_constructible_v<T, U>)
 	[[nodiscard]] constexpr explicit(!std::is_convertible_v<U, T>) optional(U && other) : base{ static_cast<U &&>(other) } {}
 
     template <typename U>
@@ -345,23 +345,24 @@ public:
 	[[nodiscard]] constexpr optional(bool condition, T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T>
 	: base{ condition ? base(static_cast<T &&>(other)) : base{} } {}
 
-	template <class... Args>
+	template <typename... Args>
 	constexpr optional(in_place_init_if_t, bool condition, Args &&... args)
 	: base{} { if (condition) this->emplace(static_cast<Args &&>(args)...); }
 
-	template <dtl::inplace_factory_type Factory>
-		requires std::is_default_constructible_v<T>
+	template <typename Factory>
+		requires (dtl::inplace_factory_type<Factory> && std::is_default_constructible_v<T>)
 	explicit optional(Factory && f)
 	: base(std::in_place) {
 		replace_from(static_cast<Factory &&>(f));
 	}
-	template <dtl::inplace_factory_type Factory>
-		requires (!std::is_default_constructible_v<T>)
+	template <typename Factory>
+		requires (dtl::inplace_factory_type<Factory> && !std::is_default_constructible_v<T>)
 	explicit optional(Factory && f)
 	: base(std::in_place, make_from(static_cast<Factory &&>(f))) {}
 
 	// assignment
-	template <dtl::inplace_factory_type Factory>
+	template <typename Factory>
+		requires dtl::inplace_factory_type<Factory>
 	optional<T> & operator=(Factory && f) {
 		if (*this) {
 			replace_from(static_cast<Factory &&>(f));
@@ -449,11 +450,11 @@ public:
 		return this->has_value() ? **this : replacement;
 	}
 
-	template <class Func>
+	template <typename Func>
 	[[nodiscard]] constexpr T value_or_eval(Func f) const & {
 		return this->has_value()? **this : f();
 	}
-	template <class Func>
+	template <typename Func>
 	[[nodiscard]] constexpr T value_or_eval(Func f) && {
 		return this->has_value()? static_cast<T &&>(**this) : f();
 	}
@@ -498,7 +499,7 @@ public:
 	[[nodiscard]] constexpr optional(optional && other) noexcept      = default;
 	optional(T &&) { taint_rvalue<T>{}; }
 
-	template <class U>
+	template <typename U>
 	[[nodiscard]] constexpr explicit optional(const optional<U &> & other) noexcept : p_(other.get_ptr()) {}
 
 	template <typename U>
@@ -526,7 +527,8 @@ public:
 		return *this;
 	}
 
-	template <dtl::not_optional_related U>
+	template <typename U>
+		requires dtl::not_optional_related<U>
 	constexpr optional & operator=(U && rhs) noexcept {
 		taint_rvalue<U>{};
 		p_ = std::addressof(rhs);
@@ -563,7 +565,8 @@ public:
 	using pointer_const_type   = T *;
 
 	// construction
-	template <dtl::not_optional_related U>
+	template <typename U>
+		requires dtl::not_optional_related<U>
 	constexpr optional(bool condition, U && rhs) noexcept
 	: p_(condition ? std::addressof(rhs) : nullptr) {
 		taint_rvalue<U>{};
@@ -597,7 +600,7 @@ public:
 		return p_ ? *p_ : replacement;
 	}
 
-	template <class Func>
+	template <typename Func>
 	[[nodiscard]] T & value_or_eval(Func f) const {
 		taint_rvalue<std::invoke_result_t<Func>>{};
 		return p_ ? *p_ : f();
@@ -885,7 +888,7 @@ make_optional(std::initializer_list<E> list, Args &&... args) {
 	return optional<T>{ std::in_place, list, static_cast<Args &&>(args)... };
 }
 
-template <class T>
+template <typename T>
 optional(T) -> optional<T>;
 
 // non-standard additional Boost interfaces
