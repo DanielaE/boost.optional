@@ -878,6 +878,14 @@ template <typename T>
 constexpr void swap(optional<T &> & lhs, optional<T &> & rhs) noexcept {
 	lhs.swap(rhs);
 }
+template <typename T>
+constexpr void swap(optional<T &> & lhs, dtl::base_optional<T &> & rhs) noexcept {
+	lhs.swap(rhs);
+}
+template <typename T>
+constexpr void swap(dtl::base_optional<T &> & lhs, optional<T &> & rhs) noexcept {
+	lhs.swap(rhs);
+}
 
 template <typename T>
 	requires (!dtl::optional_type<T>)
@@ -904,7 +912,7 @@ optional(T) -> optional<T>;
 
 // non-standard additional Boost interfaces
 
-namespace {
+namespace dtl {
 template <typename T>
 using reference_t = typename optional<T>::reference_type;
 template <typename T>
@@ -922,44 +930,44 @@ make_optional(bool condition, T && v) {
 }
 
 template <typename T>
-constexpr const_reference_t<T> get(const optional<T> & o) {
+constexpr dtl::const_reference_t<T> get(const optional<T> & o) {
 	return o.get();
 }
 
 template <typename T>
-constexpr reference_t<T> get(optional<T> & o) {
+constexpr dtl::reference_t<T> get(optional<T> & o) {
 	return o.get();
 }
 
 template <typename T>
-constexpr const_pointer_t<T> get(const optional<T> * o) {
+constexpr dtl::const_pointer_t<T> get(const optional<T> * o) {
 	return o->get_ptr();
 }
 
 template <typename T>
-constexpr pointer_t<T> get(optional<T> * o) {
+constexpr dtl::pointer_t<T> get(optional<T> * o) {
 	return o->get_ptr();
 }
 
 template <typename T>
-constexpr const_reference_t<T>
-get_optional_value_or(const optional<T> & o, const_reference_t<T> v) {
+constexpr dtl::const_reference_t<T>
+get_optional_value_or(const optional<T> & o, dtl::const_reference_t<T> v) {
 	return o.get_value_or(v);
 }
 
 template <typename T>
-constexpr reference_t<T>
-get_optional_value_or(optional<T> & o, reference_t<T> v) {
+constexpr dtl::reference_t<T>
+get_optional_value_or(optional<T> & o, dtl::reference_t<T> v) {
 	return o.get_value_or(v);
 }
 
 template <typename T>
-constexpr const_pointer_t<T> get_pointer(const optional<T> & o) {
+constexpr dtl::const_pointer_t<T> get_pointer(const optional<T> & o) {
 	return o.get_ptr();
 }
 
 template <typename T>
-constexpr pointer_t<T> get_pointer(optional<T> & o) {
+constexpr dtl::pointer_t<T> get_pointer(optional<T> & o) {
 	return o.get_ptr();
 }
 } // namespace NS_OPTIONAL
