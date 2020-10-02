@@ -549,7 +549,8 @@ public:
 
 	constexpr void reset() noexcept { p_ = nullptr; }
 
-	template <dtl::not_optional_related U>
+	template <typename U>
+		requires dtl::not_optional_related<U>
 	constexpr void emplace(U && rhs) noexcept {
 		p_ = std::addressof(rhs);
 		taint_rvalue<U>{};
@@ -715,13 +716,15 @@ template <typename T, typename U>
 }
 
 #ifdef OPTIONAL_THREE_WAY
-template <typename T, dtl::tw_comparable<T> U>
+template <typename T,  typename U>
+	requires dtl::tw_comparable<T, U>
 [[nodiscard]] constexpr std::compare_three_way_result_t<T, U> operator<=>(const optional<T> & lhs, const optional<U> & rhs) {
 	const bool lhv = lhs.has_value();
 	const bool rhv = rhs.has_value();
 	return lhs && rhv ? *lhs <=> *rhs : lhv <=> rhv;
 }
-template <typename T, dtl::tw_comparable<T> U>
+template <typename T,  typename U>
+	requires dtl::tw_comparable<T, U>
 [[nodiscard]] constexpr std::compare_three_way_result_t<T, U> operator<=>(const optional<T> & lhs, const std::optional<U> & rhs) {
 	const bool lhv = lhs.has_value();
 	const bool rhv = rhs.has_value();
@@ -858,7 +861,8 @@ template <dtl::not_optional_related U, typename T>
 }
 
 #ifdef OPTIONAL_THREE_WAY
-template <typename T, dtl::tw_comparable<T> U>
+template <typename T,  typename U>
+	requires dtl::tw_comparable<T, U>
 [[nodiscard]] constexpr std::compare_three_way_result_t<T, U> operator<=>(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() ? *lhs <=> rhs : std::strong_ordering::less;
 }
@@ -870,11 +874,13 @@ constexpr void swap(optional<T &> & lhs, optional<T &> & rhs) noexcept {
 	lhs.swap(rhs);
 }
 
-template <dtl::not_optional T>
+template <typename T>
+	requires (!dtl::optional_type<T>)
 [[nodiscard]] constexpr optional<std::decay_t<T>> make_optional(T && value) {
 	return optional<std::decay_t<T>>{ static_cast<T &&>(value) };
 }
-template <dtl::optional_type T>
+template <typename T>
+	requires dtl::optional_type<T>
 [[nodiscard]] constexpr optional<std::decay_t<T>> make_optional(T && value) {
 	return optional<std::decay_t<T>>{ static_cast<T &&>(value) };
 }
@@ -882,9 +888,9 @@ template <typename T, typename... Args>
 [[nodiscard]] constexpr optional<T> make_optional(Args &&... args) {
 	return optional<T>{ std::in_place, static_cast<Args &&>(args)... };
 }
-template <typename T, typename E, typename... Args>
+template <typename T, typename Elem, typename... Args>
 [[nodiscard]] constexpr optional<T>
-make_optional(std::initializer_list<E> list, Args &&... args) {
+make_optional(std::initializer_list<Elem> list, Args &&... args) {
 	return optional<T>{ std::in_place, list, static_cast<Args &&>(args)... };
 }
 
