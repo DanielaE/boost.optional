@@ -1,30 +1,32 @@
 #pragma once
-//#if __cplusplus <= 201703L
-//#  error insufficient language support!
-//#endif
+#if __cplusplus <= 201703L
+#  error insufficient language support!
+#endif
 #include <optional>
 #include <type_traits>
 #include <concepts>
 #include <compare>
 
-#define DEPRECATED // [[deprecated]]
 #ifdef __cpp_consteval
-#define CONSTEVAL consteval
+#define OPTIONAL_CONSTEVAL consteval
 #else
-#define CONSTEVAL constexpr
+#define OPTIONAL_CONSTEVAL constexpr
 #endif
-#ifdef __cpp_consteval
-#define CONSTINIT constinit
+#ifdef __cpp_constinit
+#define OPTIONAL_CONSTINIT constinit
 #else
-#define CONSTINIT inline constexpr
+#define OPTIONAL_CONSTINIT inline constexpr
 #endif
 
 #if !defined(OPTIONAL_THREE_WAY) && defined(__cpp_impl_three_way_comparison)
 #define OPTIONAL_THREE_WAY
 #endif
 
-#ifndef NS_OPTIONAL
-#  define NS_OPTIONAL boost
+#ifndef OPTIONAL_NAMESPACE
+#define OPTIONAL_NAMESPACE boost
+#endif
+#ifndef OPTIONAL_DEPRECATED
+#define OPTIONAL_DEPRECATED [[deprecated]]
 #endif
 
 namespace boost {
@@ -35,7 +37,7 @@ template <typename T>
 struct optional_swap_should_use_default_constructor;
 } // namespace boost
 
-namespace NS_OPTIONAL {
+namespace OPTIONAL_NAMESPACE {
 struct in_place_init_t : std::in_place_t {
 	constexpr explicit in_place_init_t(std::in_place_t) {}
 };
@@ -60,17 +62,17 @@ inline constexpr none_t none{ std::nullopt };
 using bad_optional_access = std::bad_optional_access;
 }
 
-namespace NS_OPTIONAL {
+namespace OPTIONAL_NAMESPACE {
 namespace dtl {
 template <typename T>
 using base_optional = std::optional<T>;
 
 template <typename T>
-CONSTINIT bool dependent_false = false;
+OPTIONAL_CONSTINIT bool dependent_false = false;
 
-CONSTEVAL std::false_type optional_tag(...);
+OPTIONAL_CONSTEVAL std::false_type optional_tag(...);
 template <typename T>
-CONSTEVAL std::true_type optional_tag(const volatile dtl::base_optional<T> *);
+OPTIONAL_CONSTEVAL std::true_type optional_tag(const volatile dtl::base_optional<T> *);
 
 template <typename T>
 concept optional_type = decltype(optional_tag((std::remove_reference_t<T> *)nullptr))::value;
@@ -173,7 +175,7 @@ constexpr bool ne_v(const T & lhs, const U & rhs) {
 	} else if constexpr (eq_comparable<T, U>) {
 		return !(lhs == rhs);
 	} else {
-	    static_assert(dependent_false<T>, "invalid expression lhs != rhs");
+		static_assert(dependent_false<T>, "invalid expression lhs != rhs");
 	}
 }
 
@@ -182,7 +184,7 @@ constexpr bool lt_v(const T & lhs, const U & rhs) {
 	if constexpr (lt_comparable<T, U>) {
 		return lhs < rhs;
 	} else {
-	    static_assert(dependent_false<T>, "invalid expression lhs < rhs");
+		static_assert(dependent_false<T>, "invalid expression lhs < rhs");
 	}
 }
 
@@ -193,7 +195,7 @@ constexpr bool gt_v(const T & lhs, const U & rhs) {
 	} else if constexpr (lt_comparable<U, T>) {
 		return rhs < lhs;
 	} else {
-	    static_assert(dependent_false<T>, "invalid expression lhs > rhs");
+		static_assert(dependent_false<T>, "invalid expression lhs > rhs");
 	}
 }
 
@@ -204,7 +206,7 @@ constexpr bool le_v(const T & lhs, const U & rhs) {
 	} else if constexpr (lt_comparable<U, T>) {
 		return !(rhs < lhs);
 	} else {
-	    static_assert(dependent_false<T>, "invalid expression lhs <= rhs");
+		static_assert(dependent_false<T>, "invalid expression lhs <= rhs");
 	}
 }
 
@@ -215,14 +217,14 @@ constexpr bool ge_v(const T & lhs, const U & rhs) {
 	} else if constexpr (lt_comparable<T, U>) {
 		return !(lhs < rhs);
 	} else {
-	    static_assert(dependent_false<T>, "invalid expression lhs >= rhs");
+		static_assert(dependent_false<T>, "invalid expression lhs >= rhs");
 	}
 }
 
 } // namespace dtl
 }
 
-namespace NS_OPTIONAL {
+namespace OPTIONAL_NAMESPACE {
 template <typename T>
 class optional : public dtl::base_optional<T> {
 	using base = dtl::base_optional<T>;
@@ -259,32 +261,36 @@ public:
 	[[nodiscard]] constexpr explicit optional(std::in_place_t, Args &&... args)
 	: base{ std::in_place, static_cast<Args &&>(args)... } {}
 
-//	constexpr optional(const optional & other) : base{ other } {}
-//	constexpr optional(optional && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<base &&>(other) } {}
-	
 	template <typename U, typename... Args>
 		requires std::is_constructible_v<T, std::initializer_list<U> &, Args &&...>
 	[[nodiscard]] constexpr optional(std::in_place_t, std::initializer_list<U> il, Args &&... args)
 	: base{ std::in_place, il, static_cast<Args &&>(args)... } {}
 
 	template <typename U>
-		requires (!dtl::optional_related<U> && !std::is_same_v<T, std::decay_t<U>> && !dtl::inplace_factory_type<U> && std::is_constructible_v<T, U>)
-	[[nodiscard]] constexpr explicit(!std::is_convertible_v<U, T>) optional(U && other) : base{ static_cast<U &&>(other) } {}
+		requires (!dtl::optional_related<U> &&
+		          !std::is_same_v<T, std::decay_t<U>> &&
+		          !dtl::inplace_factory_type<U> &&
+		           std::is_constructible_v<T, U>)
+	[[nodiscard]] constexpr explicit(!std::is_convertible_v<U, T>)
+	optional(U && other) : base{ static_cast<U &&>(other) } {}
 
-    template <typename U>
+	template <typename U>
 		requires std::is_constructible_v<T, U>
-	[[nodiscard]] constexpr explicit(!std::is_convertible_v<U, T>) optional(const optional<U &> & other) : base{ other ? base{*other} : base{} } {}
+	[[nodiscard]] constexpr explicit(!std::is_convertible_v<U, T>)
+	optional(const optional<U &> & other) : base{ other ? base{*other} : base{} } {}
 	template <typename U>
 		requires (!std::is_reference_v<U> &&
 		          !std::is_same_v<T, U> &&
 		          !dtl::compatible_optional_type<T, U>)
-	[[nodiscard]] explicit(!std::is_convertible_v<U, T>) optional(const dtl::base_optional<U> & other) : base{ other } {}
+	[[nodiscard]] explicit(!std::is_convertible_v<U, T>)
+	optional(const dtl::base_optional<U> & other) : base{ other } {}
 
 	template <typename U>
 		requires (!std::is_reference_v<U> &&
 		          !std::is_same_v<T, U> &&
 		          !dtl::compatible_optional_type<T, U>)
-	[[nodiscard]] explicit(!std::is_convertible_v<U, T>) optional(dtl::base_optional<U> && other) : base{ static_cast<dtl::base_optional<U> &&>(other) } {}
+	[[nodiscard]] explicit(!std::is_convertible_v<U, T>)
+	optional(dtl::base_optional<U> && other) : base{ static_cast<dtl::base_optional<U> &&>(other) } {}
 
 	// assignment
 	optional & operator=(std::nullopt_t) noexcept {
@@ -301,14 +307,16 @@ public:
 	}
 
 	template <typename U>
-		requires (!std::is_reference_v<U> && std::is_assignable_v<dtl::base_optional<T>, const dtl::base_optional<U> &>)
+		requires (!std::is_reference_v<U> &&
+		          std::is_assignable_v<dtl::base_optional<T>, const dtl::base_optional<U> &>)
 	optional & operator=(const dtl::base_optional<U> & rhs) {
 		return static_cast<optional &>(
 			base::operator=(rhs));
 	}
 
 	template <typename U>
-		requires (!std::is_reference_v<U> && std::is_assignable_v<dtl::base_optional<T>, dtl::base_optional<U> &&>)
+		requires (!std::is_reference_v<U> &&
+		          std::is_assignable_v<dtl::base_optional<T>, dtl::base_optional<U> &&>)
 	optional & operator=(dtl::base_optional<U> && rhs) {
 		return static_cast<optional &>(
 			base::operator=(static_cast<dtl::base_optional<U> &&>(rhs)));
@@ -323,7 +331,7 @@ public:
 	template <typename U>
 		requires requires(base lhs, const U & rhs) { lhs = rhs; }
 	optional & operator=(optional<U &> && rhs) {
-	    return static_cast<optional &>( rhs ? base::operator=(*rhs) : base::operator=(std::nullopt));
+		return static_cast<optional &>( rhs ? base::operator=(*rhs) : base::operator=(std::nullopt));
 	}
 
 	// conversion from base
@@ -342,11 +350,16 @@ public:
 
 	// construction
 	[[nodiscard]] constexpr optional(const T & other) : base{ other } {}
-	[[nodiscard]] constexpr optional(T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T> : base{ static_cast<T &&>(other) } {}
+	[[nodiscard]] constexpr optional(T && other)
+		noexcept(std::is_nothrow_move_constructible_v<T>)
+		requires std::is_move_constructible_v<T>
+	: base{ static_cast<T &&>(other) } {}
 
 	[[nodiscard]] constexpr optional(bool condition, const T & other)
 	: base{ condition ? base(other) : base{} } {}
-	[[nodiscard]] constexpr optional(bool condition, T && other) noexcept(std::is_nothrow_move_constructible_v<T>) requires std::is_move_constructible_v<T>
+	[[nodiscard]] constexpr optional(bool condition, T && other)
+		noexcept(std::is_nothrow_move_constructible_v<T>)
+		requires std::is_move_constructible_v<T>
 	: base{ condition ? base(static_cast<T &&>(other)) : base{} } {}
 
 	template <typename... Args>
@@ -468,17 +481,17 @@ public:
 
 	// deprecated
 	// observers
-	DEPRECATED [[nodiscard]] constexpr bool is_initialized() const noexcept {
+	OPTIONAL_DEPRECATED [[nodiscard]] constexpr bool is_initialized() const noexcept {
 		return this->has_value();
 	}
 	// modifiers
-	DEPRECATED constexpr void reset(T const & rhs) { *this = rhs; }
+	OPTIONAL_DEPRECATED constexpr void reset(T const & rhs) { *this = rhs; }
 };
 
 template <typename T>
 class optional<T &> {
 	template <typename U>
-	friend CONSTEVAL std::true_type optional_tag(const volatile optional<U &> *);
+	friend OPTIONAL_CONSTEVAL std::true_type optional_tag(const volatile optional<U &> *);
 
 	template <typename U>
 	struct taint_rvalue {
@@ -613,13 +626,13 @@ public:
 
 	// deprecated
 	// observers
-	DEPRECATED [[nodiscard]] constexpr bool is_initialized() const noexcept {
+	OPTIONAL_DEPRECATED [[nodiscard]] constexpr bool is_initialized() const noexcept {
 		return p_ != nullptr;
 	}
 
 	template <typename U>
 		requires (!dtl::optional_type<U>)
-	DEPRECATED [[nodiscard]] constexpr T &
+	OPTIONAL_DEPRECATED [[nodiscard]] constexpr T &
 	get_value_or(U && replacement) const noexcept {
 		taint_rvalue<U>{};
 		return p_ ? *p_ : replacement;
@@ -628,7 +641,7 @@ public:
 	// modifiers
 	template <typename U>
 		requires (!dtl::optional_type<U>)
-	DEPRECATED constexpr void reset(U && rhs) noexcept {
+	OPTIONAL_DEPRECATED constexpr void reset(U && rhs) noexcept {
 		taint_rvalue<U>{};
 		p_ = std::addressof(rhs);
 	}
@@ -723,14 +736,16 @@ template <typename T, typename U>
 #ifdef OPTIONAL_THREE_WAY
 template <typename T,  typename U>
 	requires dtl::tw_comparable<T, U>
-[[nodiscard]] constexpr std::compare_three_way_result_t<T, U> operator<=>(const optional<T> & lhs, const optional<U> & rhs) {
+[[nodiscard]] constexpr std::compare_three_way_result_t<T, U>
+operator<=>(const optional<T> & lhs, const optional<U> & rhs) {
 	const bool lhv = lhs.has_value();
 	const bool rhv = rhs.has_value();
 	return lhs && rhv ? *lhs <=> *rhs : lhv <=> rhv;
 }
 template <typename T,  typename U>
 	requires dtl::tw_comparable<T, U>
-[[nodiscard]] constexpr std::compare_three_way_result_t<T, U> operator<=>(const optional<T> & lhs, const dtl::base_optional<U> & rhs) {
+[[nodiscard]] constexpr std::compare_three_way_result_t<T, U>
+operator<=>(const optional<T> & lhs, const dtl::base_optional<U> & rhs) {
 	const bool lhv = lhs.has_value();
 	const bool rhv = rhs.has_value();
 	return lhs && rhv ? *lhs <=> *rhs : lhv <=> rhv;
@@ -800,67 +815,79 @@ template <typename T>
 // [optional.comp_with_t]
 
 template <typename T, typename U>
-	requires !(dtl::optional_related <U>) && (dtl::eq_comparable<T, U> || dtl::ne_comparable<T, U>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::eq_comparable<T, U> || dtl::ne_comparable<T, U>)
 [[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() && dtl::eq_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires !(dtl::optional_related <U>) && (dtl::eq_comparable<U, T> || dtl::ne_comparable<U, T>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::eq_comparable<U, T> || dtl::ne_comparable<U, T>)
 [[nodiscard]] constexpr bool operator==(const U & lhs, const optional<T> & rhs) {
 	return rhs.has_value() && dtl::eq_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires !(dtl::optional_related <U>) && (dtl::ne_comparable<T, U> || dtl::eq_comparable<T, U>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::ne_comparable<T, U> || dtl::eq_comparable<T, U>)
 [[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const U & rhs) {
 	return !lhs.has_value() || dtl::ne_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires !(dtl::optional_related <U>) && (dtl::ne_comparable<U, T> || dtl::eq_comparable<U, T>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::ne_comparable<U, T> || dtl::eq_comparable<U, T>)
 [[nodiscard]] constexpr bool operator!=(const U & lhs, const optional<T> & rhs) {
 	return !rhs.has_value() || dtl::ne_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires !(dtl::optional_related <U>) && dtl::lt_comparable<T, U>
+	requires !(dtl::optional_related <U>) &&
+	           dtl::lt_comparable<T, U>
 [[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const U & rhs) {
 	return !lhs.has_value() || dtl::lt_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires !(dtl::optional_related <U>) && dtl::lt_comparable<U, T>
+	requires !(dtl::optional_related <U>) &&
+	           dtl::lt_comparable<U, T>
 [[nodiscard]] constexpr bool operator<(const U & lhs, const optional<T> & rhs) {
 	return rhs.has_value() && dtl::lt_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires !(dtl::optional_related <U>) && (dtl::gt_comparable<T, U> || dtl::lt_comparable<U, T>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::gt_comparable<T, U> || dtl::lt_comparable<U, T>)
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() && dtl::gt_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires !(dtl::optional_related <U>) && (dtl::gt_comparable<U, T> || dtl::lt_comparable<T, U>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::gt_comparable<U, T> || dtl::lt_comparable<T, U>)
 [[nodiscard]] constexpr bool operator>(const U & lhs, const optional<T> & rhs) {
 	return !rhs.has_value() || dtl::gt_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires !(dtl::optional_related <U>) && (dtl::le_comparable<T, U> || dtl::lt_comparable<U, T>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::le_comparable<T, U> || dtl::lt_comparable<U, T>)
 [[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const U & rhs) {
 	return !lhs.has_value() || dtl::le_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires !(dtl::optional_related <U>) && (dtl::le_comparable<U, T> || dtl::lt_comparable<T, U>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::le_comparable<U, T> || dtl::lt_comparable<T, U>)
 [[nodiscard]] constexpr bool operator<=(const U & lhs, const optional<T> & rhs) {
 	return rhs.has_value() && dtl::le_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires !(dtl::optional_related <U>) && (dtl::ge_comparable<T, U> || dtl::lt_comparable<T, U>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::ge_comparable<T, U> || dtl::lt_comparable<T, U>)
 [[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() && dtl::ge_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires !(dtl::optional_related <U>) && (dtl::ge_comparable<U, T> || dtl::lt_comparable<U, T>)
+	requires !(dtl::optional_related <U>) &&
+	          (dtl::ge_comparable<U, T> || dtl::lt_comparable<U, T>)
 [[nodiscard]] constexpr bool operator>=(const U & lhs, const optional<T> & rhs) {
 	return !rhs.has_value() || dtl::ge_v(lhs, *rhs);
 }
@@ -868,7 +895,8 @@ template <typename U, typename T>
 #ifdef OPTIONAL_THREE_WAY
 template <typename T,  typename U>
 	requires dtl::tw_comparable<T, U>
-[[nodiscard]] constexpr std::compare_three_way_result_t<T, U> operator<=>(const optional<T> & lhs, const U & rhs) {
+[[nodiscard]] constexpr std::compare_three_way_result_t<T, U>
+operator<=>(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() ? *lhs <=> rhs : std::strong_ordering::less;
 }
 #endif
@@ -970,14 +998,15 @@ template <typename T>
 constexpr dtl::pointer_t<T> get_pointer(optional<T> & o) {
 	return o.get_ptr();
 }
-} // namespace NS_OPTIONAL
+} // namespace OPTIONAL_NAMESPACE
 
 // [optional.hash]
 namespace std {
 template <typename T>
-struct hash<::NS_OPTIONAL::optional<T>> : hash<::NS_OPTIONAL::dtl::base_optional<T>> {
-	using argument_type = ::NS_OPTIONAL::optional<T>;
-	using base          = hash<::NS_OPTIONAL::dtl::base_optional<T>>;
+struct hash<::OPTIONAL_NAMESPACE::optional<T>> :
+	hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>> {
+	using argument_type = ::OPTIONAL_NAMESPACE::optional<T>;
+	using base          = hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>;
 	using base::base;
 	std::size_t operator()(const argument_type & o) const noexcept {
 		return base::operator()(o);
@@ -985,8 +1014,8 @@ struct hash<::NS_OPTIONAL::optional<T>> : hash<::NS_OPTIONAL::dtl::base_optional
 };
 
 template <typename T>
-struct hash<::NS_OPTIONAL::optional<T &>> : hash<T> {
-	using argument_type = ::NS_OPTIONAL::optional<T &>;
+struct hash<::OPTIONAL_NAMESPACE::optional<T &>> : hash<T> {
+	using argument_type = ::OPTIONAL_NAMESPACE::optional<T &>;
 	using base          = hash<T>;
 	using base::base;
 	std::size_t operator()(const argument_type & o) const noexcept {

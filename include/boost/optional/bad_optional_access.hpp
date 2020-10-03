@@ -9,8 +9,9 @@
 // You are welcome to contact the author at:
 //  akrzemi1@gmail.com
 //
-#ifndef BOOST_BAD_OPTIONAL_ACCESS_22MAY2014_HPP
-#define BOOST_BAD_OPTIONAL_ACCESS_22MAY2014_HPP
+#pragma once
+#ifndef BOOST_BAD_OPTIONAL_ACCESS_CPP20
+#define BOOST_BAD_OPTIONAL_ACCESS_CPP20
 
 #include <optional>
 
