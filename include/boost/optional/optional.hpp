@@ -815,79 +815,77 @@ template <typename T>
 // [optional.comp_with_t]
 
 template <typename T, typename U>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::eq_comparable<T, U> || dtl::ne_comparable<T, U>))
+	requires (dtl::eq_comparable<T, U> || dtl::ne_comparable<T, U>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() && dtl::eq_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::eq_comparable<U, T> || dtl::ne_comparable<U, T>))
+	requires (dtl::eq_comparable<U, T> || dtl::ne_comparable<U, T>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator==(const U & lhs, const optional<T> & rhs) {
 	return rhs.has_value() && dtl::eq_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::ne_comparable<T, U> || dtl::eq_comparable<T, U>))
+	requires (dtl::ne_comparable<T, U> || dtl::eq_comparable<T, U>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator!=(const optional<T> & lhs, const U & rhs) {
 	return !lhs.has_value() || dtl::ne_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::ne_comparable<U, T> || dtl::eq_comparable<U, T>))
+	requires (dtl::ne_comparable<U, T> || dtl::eq_comparable<U, T>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator!=(const U & lhs, const optional<T> & rhs) {
 	return !rhs.has_value() || dtl::ne_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires (!(dtl::optional_related <U>) &&
-	            dtl::lt_comparable<T, U>)
+	requires dtl::lt_comparable<T, U> && (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator<(const optional<T> & lhs, const U & rhs) {
 	return !lhs.has_value() || dtl::lt_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires (!(dtl::optional_related <U>) &&
-	            dtl::lt_comparable<U, T>)
+	requires dtl::lt_comparable<U, T> && (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator<(const U & lhs, const optional<T> & rhs) {
 	return rhs.has_value() && dtl::lt_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::gt_comparable<T, U> || dtl::lt_comparable<U, T>))
+	requires (dtl::gt_comparable<T, U> || dtl::lt_comparable<U, T>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator>(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() && dtl::gt_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::gt_comparable<U, T> || dtl::lt_comparable<T, U>))
+	requires (dtl::gt_comparable<U, T> || dtl::lt_comparable<T, U>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator>(const U & lhs, const optional<T> & rhs) {
 	return !rhs.has_value() || dtl::gt_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::le_comparable<T, U> || dtl::lt_comparable<U, T>))
+	requires (dtl::le_comparable<T, U> || dtl::lt_comparable<U, T>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator<=(const optional<T> & lhs, const U & rhs) {
 	return !lhs.has_value() || dtl::le_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::le_comparable<U, T> || dtl::lt_comparable<T, U>))
+	requires (dtl::le_comparable<U, T> || dtl::lt_comparable<T, U>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator<=(const U & lhs, const optional<T> & rhs) {
 	return rhs.has_value() && dtl::le_v(lhs, *rhs);
 }
 
 template <typename T, typename U>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::ge_comparable<T, U> || dtl::lt_comparable<T, U>))
+	requires (dtl::ge_comparable<T, U> || dtl::lt_comparable<T, U>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator>=(const optional<T> & lhs, const U & rhs) {
 	return lhs.has_value() && dtl::ge_v(*lhs, rhs);
 }
 template <typename U, typename T>
-	requires (!(dtl::optional_related <U>) &&
-	           (dtl::ge_comparable<U, T> || dtl::lt_comparable<U, T>))
+	requires (dtl::ge_comparable<U, T> || dtl::lt_comparable<U, T>) &&
+	         (!dtl::optional_related<U>)
 [[nodiscard]] constexpr bool operator>=(const U & lhs, const optional<T> & rhs) {
 	return !rhs.has_value() || dtl::ge_v(lhs, *rhs);
 }
