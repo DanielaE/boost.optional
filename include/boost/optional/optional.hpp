@@ -1,11 +1,14 @@
-#ifndef OPTIONAL_NAMED_MODULE
-
+﻿#ifndef OPTIONAL_NAMED_MODULE_PURVIEW
+#ifndef OPTIONAL_NAMED_MODULE_GMF
 #pragma once
+#endif
+
 #if __cplusplus <= 201703L
 #  error insufficient language support!
 #endif
 #include <optional>
 #include <type_traits>
+#include <functional> // for std::hash
 #include <concepts>
 #include <compare>
 
@@ -20,11 +23,15 @@ struct optional_swap_should_use_default_constructor;
 #define OPTIONAL_EXPORT
 #define OPTIONAL_NOEXPORT_BEGIN namespace {
 #define OPTIONAL_NOEXPORT_END }
+
 #else
+
 #define OPTIONAL_EXPORT export
 #define OPTIONAL_NOEXPORT_BEGIN
 #define OPTIONAL_NOEXPORT_END
-#endif
+
+#endif // OPTIONAL_NAMED_MODULE_PURVIEW
+#ifndef OPTIONAL_NAMED_MODULE_GMF
 
 #ifdef OPTIONAL_USE_OPTIONAL
 #define OPTIONAL_BASE_OPTIONAL OPTIONAL_USE_OPTIONAL
@@ -271,7 +278,7 @@ public:
 	//[optional.object.ctor]
 	[[nodiscard]] constexpr optional() noexcept = default;
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {};
-	
+
 	template <typename... Args>
 		requires std::is_constructible_v<T, Args...>
 	[[nodiscard]] constexpr explicit optional(std::in_place_t, Args &&... args)
@@ -314,9 +321,9 @@ public:
 	}
 
 	template <typename U = T>
-		requires (!std::is_same_v<optional, std::remove_cvref_t<U>> && 
-		          !dtl::nullopt_type<U> && 
-		          !(std::is_scalar_v<T> && std::is_same_v<T, std::decay_t<U>>) && 
+		requires (!std::is_same_v<optional, std::remove_cvref_t<U>> &&
+		          !dtl::nullopt_type<U> &&
+		          !(std::is_scalar_v<T> && std::is_same_v<T, std::decay_t<U>>) &&
 		          std::is_constructible_v<T, U> && std::is_assignable_v<T&, U>)
 	optional & operator=(U && rhs) {
 		return static_cast<optional &>(base::operator=(static_cast<U &&>(rhs)));
@@ -1051,7 +1058,11 @@ struct hash<::OPTIONAL_NAMESPACE::optional<T &>> : hash<T> {
 #undef OPTIONAL_CONSTEVAL
 #undef OPTIONAL_DEPRECATED
 #undef OPTIONAL_NAMESPACE
+#undef OPTIONAL_BASE_OPTIONAL
+
+#endif // OPTIONAL_NAMED_MODULE_GMF
+
+#undef OPTIONAL_NAMED_MODULE_GMF
 #undef OPTIONAL_EXPORT
 #undef OPTIONAL_NOEXPORT_BEGIN
 #undef OPTIONAL_NOEXPORT_END
-#undef OPTIONAL_BASE_OPTIONAL
