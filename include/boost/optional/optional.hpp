@@ -1,3 +1,5 @@
+#ifndef OPTIONAL_NAMED_MODULE
+
 #pragma once
 #if __cplusplus <= 201703L
 #  error insufficient language support!
@@ -7,18 +9,36 @@
 #include <concepts>
 #include <compare>
 
+namespace boost {
+class in_place_factory_base;
+class typed_in_place_factory_base;
+
+template <typename T>
+struct optional_swap_should_use_default_constructor;
+} // namespace boost
+
+#define OPTIONAL_EXPORT
+#define OPTIONAL_NOEXPORT_BEGIN namespace {
+#define OPTIONAL_NOEXPORT_END }
+#else
+#define OPTIONAL_EXPORT export
+#define OPTIONAL_NOEXPORT_BEGIN
+#define OPTIONAL_NOEXPORT_END
+#endif
+
+#ifdef OPTIONAL_USE_OPTIONAL
+#define OPTIONAL_BASE_OPTIONAL OPTIONAL_USE_OPTIONAL
+#else
+#define OPTIONAL_BASE_OPTIONAL std::optional
+#endif
+
 #ifdef __cpp_consteval
 #define OPTIONAL_CONSTEVAL consteval
 #else
 #define OPTIONAL_CONSTEVAL constexpr
 #endif
-#ifdef __cpp_constinit
-#define OPTIONAL_CONSTINIT constinit
-#else
-#define OPTIONAL_CONSTINIT inline constexpr
-#endif
 
-#if !defined(OPTIONAL_THREE_WAY) && defined(__cpp_impl_three_way_comparison)
+#if !defined(OPTIONAL_NO_THREE_WAY) && defined(__cpp_impl_three_way_comparison)
 #define OPTIONAL_THREE_WAY
 #endif
 
@@ -29,14 +49,7 @@
 #define OPTIONAL_DEPRECATED [[deprecated]]
 #endif
 
-namespace boost {
-class in_place_factory_base;
-class typed_in_place_factory_base;
-
-template <typename T>
-struct optional_swap_should_use_default_constructor;
-} // namespace boost
-
+OPTIONAL_EXPORT
 namespace OPTIONAL_NAMESPACE {
 struct in_place_init_t : std::in_place_t {
 	constexpr explicit in_place_init_t(std::in_place_t) {}
@@ -63,12 +76,13 @@ using bad_optional_access = std::bad_optional_access;
 }
 
 namespace OPTIONAL_NAMESPACE {
+OPTIONAL_NOEXPORT_BEGIN
 namespace dtl {
 template <typename T>
-using base_optional = std::optional<T>;
+using base_optional = OPTIONAL_BASE_OPTIONAL<T>;
 
 template <typename T>
-OPTIONAL_CONSTINIT bool dependent_false = false;
+inline constexpr bool dependent_false = false;
 
 OPTIONAL_CONSTEVAL std::false_type optional_tag(...);
 template <typename T>
@@ -222,8 +236,10 @@ constexpr bool ge_v(const T & lhs, const U & rhs) {
 }
 
 } // namespace dtl
-}
+OPTIONAL_NOEXPORT_END
+} // namespace OPTIONAL_NAMESPACE
 
+OPTIONAL_EXPORT
 namespace OPTIONAL_NAMESPACE {
 template <typename T>
 class optional : public dtl::base_optional<T> {
@@ -935,9 +951,12 @@ make_optional(std::initializer_list<Elem> list, Args &&... args) {
 
 template <typename T>
 optional(T) -> optional<T>;
+} // namespace OPTIONAL_NAMESPACE
 
 // non-standard additional Boost interfaces
 
+namespace OPTIONAL_NAMESPACE {
+OPTIONAL_NOEXPORT_BEGIN
 namespace dtl {
 template <typename T>
 using reference_t = typename optional<T>::reference_type;
@@ -948,7 +967,11 @@ using pointer_t = typename optional<T>::pointer_type;
 template <typename T>
 using const_pointer_t = typename optional<T>::pointer_const_type;
 }
+OPTIONAL_NOEXPORT_END
+} // namespace OPTIONAL_NAMESPACE
 
+OPTIONAL_EXPORT
+namespace OPTIONAL_NAMESPACE {
 template <typename T>
 [[nodiscard]] constexpr optional<std::decay_t<T>>
 make_optional(bool condition, T && v) {
@@ -1000,6 +1023,7 @@ constexpr dtl::pointer_t<T> get_pointer(optional<T> & o) {
 
 // [optional.hash]
 namespace std {
+OPTIONAL_EXPORT
 template <typename T>
 struct hash<::OPTIONAL_NAMESPACE::optional<T>> :
 	hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>> {
@@ -1011,6 +1035,7 @@ struct hash<::OPTIONAL_NAMESPACE::optional<T>> :
 	}
 };
 
+OPTIONAL_EXPORT
 template <typename T>
 struct hash<::OPTIONAL_NAMESPACE::optional<T &>> : hash<T> {
 	using argument_type = ::OPTIONAL_NAMESPACE::optional<T &>;
@@ -1021,3 +1046,12 @@ struct hash<::OPTIONAL_NAMESPACE::optional<T &>> : hash<T> {
 	}
 };
 } // namespace std
+
+#undef OPTIONAL_THREE_WAY
+#undef OPTIONAL_CONSTEVAL
+#undef OPTIONAL_DEPRECATED
+#undef OPTIONAL_NAMESPACE
+#undef OPTIONAL_EXPORT
+#undef OPTIONAL_NOEXPORT_BEGIN
+#undef OPTIONAL_NOEXPORT_END
+#undef OPTIONAL_BASE_OPTIONAL
