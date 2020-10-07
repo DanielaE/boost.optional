@@ -1,11 +1,26 @@
-﻿#ifndef OPTIONAL_NAMED_MODULE_PURVIEW
-#ifndef OPTIONAL_NAMED_MODULE_GMF
+﻿#ifndef OPTIONAL_NAMED_MODULE
 #pragma once
-#endif
+
+#define OPTIONAL_EXPORT
+#define OPTIONAL_NOEXPORT_BEGIN namespace {
+#define OPTIONAL_NOEXPORT_END }
+
+#else // OPTIONAL_NAMED_MODULE
+
+#define OPTIONAL_EXPORT export
+#define OPTIONAL_NOEXPORT_BEGIN
+#define OPTIONAL_NOEXPORT_END
+
+#endif // OPTIONAL_NAMED_MODULE
 
 #if __cplusplus <= 201703L
 #  error insufficient language support!
 #endif
+
+#if !defined(OPTIONAL_NAMED_MODULE) || !defined(OPTIONAL_NAMED_MODULE_PURVIEW)
+
+// global module fragment
+
 #include <optional>
 #include <type_traits>
 #include <functional> // for std::hash
@@ -20,18 +35,14 @@ template <typename T>
 struct optional_swap_should_use_default_constructor;
 } // namespace boost
 
-#define OPTIONAL_EXPORT
-#define OPTIONAL_NOEXPORT_BEGIN namespace {
-#define OPTIONAL_NOEXPORT_END }
+#if defined(OPTIONAL_NAMED_MODULE) 
+#define OPTIONAL_NAMED_MODULE_PURVIEW
+#endif
+#endif // !OPTIONAL_NAMED_MODULE_PURVIEW
 
-#else
+#if !defined(OPTIONAL_NAMED_MODULE) || defined(OPTIONAL_NAMED_MODULE_PURVIEW)
 
-#define OPTIONAL_EXPORT export
-#define OPTIONAL_NOEXPORT_BEGIN
-#define OPTIONAL_NOEXPORT_END
-
-#endif // OPTIONAL_NAMED_MODULE_PURVIEW
-#ifndef OPTIONAL_NAMED_MODULE_GMF
+// module purview
 
 #ifdef OPTIONAL_USE_OPTIONAL
 #define OPTIONAL_BASE_OPTIONAL OPTIONAL_USE_OPTIONAL
@@ -248,6 +259,7 @@ OPTIONAL_NOEXPORT_END
 
 OPTIONAL_EXPORT
 namespace OPTIONAL_NAMESPACE {
+	
 template <typename T>
 class optional : public dtl::base_optional<T> {
 	using base = dtl::base_optional<T>;
@@ -509,7 +521,7 @@ public:
 	}
 	// modifiers
 	OPTIONAL_DEPRECATED constexpr void reset(T const & rhs) { *this = rhs; }
-};
+}; // class optional<T>
 
 template <typename T>
 class optional<T &> {
@@ -668,7 +680,7 @@ public:
 		taint_rvalue<U>{};
 		p_ = std::addressof(rhs);
 	}
-};
+}; // class optional<T &>
 
 // [optional.relops]
 
@@ -1032,24 +1044,25 @@ constexpr dtl::pointer_t<T> get_pointer(optional<T> & o) {
 namespace std {
 OPTIONAL_EXPORT
 template <typename T>
-struct hash<::OPTIONAL_NAMESPACE::optional<T>> :
-	hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>> {
+	requires
+		requires(const hash<T> & h, const T & v) { h(v); }
+struct hash<::OPTIONAL_NAMESPACE::optional<T>> {
 	using argument_type = ::OPTIONAL_NAMESPACE::optional<T>;
 	using base          = hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>;
-	using base::base;
 	std::size_t operator()(const argument_type & o) const noexcept {
-		return base::operator()(o);
+		return base{}(o);
 	}
 };
 
 OPTIONAL_EXPORT
 template <typename T>
-struct hash<::OPTIONAL_NAMESPACE::optional<T &>> : hash<T> {
+	requires
+		requires(const hash<T> & h, const T & v) { h(v); }
+struct hash<::OPTIONAL_NAMESPACE::optional<T &>> {
 	using argument_type = ::OPTIONAL_NAMESPACE::optional<T &>;
 	using base          = hash<T>;
-	using base::base;
 	std::size_t operator()(const argument_type & o) const noexcept {
-		return o.has_value() ? base::operator()(*o) : 0;
+		return o.has_value() ? base{}(*o) : 0;
 	}
 };
 } // namespace std
@@ -1060,9 +1073,8 @@ struct hash<::OPTIONAL_NAMESPACE::optional<T &>> : hash<T> {
 #undef OPTIONAL_NAMESPACE
 #undef OPTIONAL_BASE_OPTIONAL
 
-#endif // OPTIONAL_NAMED_MODULE_GMF
+#endif // OPTIONAL_NAMED_MODULE_PURVIEW
 
-#undef OPTIONAL_NAMED_MODULE_GMF
 #undef OPTIONAL_EXPORT
 #undef OPTIONAL_NOEXPORT_BEGIN
 #undef OPTIONAL_NOEXPORT_END
