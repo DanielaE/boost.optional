@@ -35,9 +35,6 @@ template <typename T>
 struct optional_swap_should_use_default_constructor;
 } // namespace boost
 
-#if defined(OPTIONAL_NAMED_MODULE) 
-#define OPTIONAL_NAMED_MODULE_PURVIEW
-#endif
 #endif // !OPTIONAL_NAMED_MODULE_PURVIEW
 
 #if !defined(OPTIONAL_NAMED_MODULE) || defined(OPTIONAL_NAMED_MODULE_PURVIEW)
@@ -67,8 +64,8 @@ struct optional_swap_should_use_default_constructor;
 #define OPTIONAL_DEPRECATED [[deprecated]]
 #endif
 
-OPTIONAL_EXPORT
-namespace OPTIONAL_NAMESPACE {
+OPTIONAL_EXPORT namespace OPTIONAL_NAMESPACE {
+
 struct in_place_init_t : std::in_place_t {
 	constexpr explicit in_place_init_t(std::in_place_t) {}
 };
@@ -91,11 +88,13 @@ inline constexpr none_t none{ std::nullopt };
 #endif
 
 using bad_optional_access = std::bad_optional_access;
-}
+
+} // exported namespace OPTIONAL_NAMESPACE
 
 namespace OPTIONAL_NAMESPACE {
 OPTIONAL_NOEXPORT_BEGIN
 namespace dtl {
+
 template <typename T>
 using base_optional = OPTIONAL_BASE_OPTIONAL<T>;
 
@@ -129,6 +128,9 @@ concept compatible_optional_type =
 	 std::is_convertible_v<const dtl::base_optional<U> &, T> ||
 	 std::is_convertible_v<const dtl::base_optional<U>, T> ||
 	 std::is_convertible_v<dtl::base_optional<U>, T>);
+
+template <typename T>
+concept hashable_type = requires(const std::hash<T> & h, const T & v) { h(v); };
 
 template <typename T>
 using unwrap_t = std::conditional_t<optional_type<T>,
@@ -253,13 +255,12 @@ constexpr bool ge_v(const T & lhs, const U & rhs) {
 	}
 }
 
-} // namespace dtl
+} // non-exported namespace dtl
 OPTIONAL_NOEXPORT_END
 } // namespace OPTIONAL_NAMESPACE
 
-OPTIONAL_EXPORT
-namespace OPTIONAL_NAMESPACE {
-	
+OPTIONAL_EXPORT namespace OPTIONAL_NAMESPACE {
+
 template <typename T>
 class optional : public dtl::base_optional<T> {
 	using base = dtl::base_optional<T>;
@@ -970,13 +971,15 @@ make_optional(std::initializer_list<Elem> list, Args &&... args) {
 
 template <typename T>
 optional(T) -> optional<T>;
-} // namespace OPTIONAL_NAMESPACE
+
+} // exported namespace OPTIONAL_NAMESPACE
 
 // non-standard additional Boost interfaces
 
 namespace OPTIONAL_NAMESPACE {
 OPTIONAL_NOEXPORT_BEGIN
 namespace dtl {
+
 template <typename T>
 using reference_t = typename optional<T>::reference_type;
 template <typename T>
@@ -985,12 +988,13 @@ template <typename T>
 using pointer_t = typename optional<T>::pointer_type;
 template <typename T>
 using const_pointer_t = typename optional<T>::pointer_const_type;
-}
+
+} // non-exported namespace dtl
 OPTIONAL_NOEXPORT_END
 } // namespace OPTIONAL_NAMESPACE
 
-OPTIONAL_EXPORT
-namespace OPTIONAL_NAMESPACE {
+OPTIONAL_EXPORT namespace OPTIONAL_NAMESPACE {
+
 template <typename T>
 [[nodiscard]] constexpr optional<std::decay_t<T>>
 make_optional(bool condition, T && v) {
@@ -1038,33 +1042,34 @@ template <typename T>
 constexpr dtl::pointer_t<T> get_pointer(optional<T> & o) {
 	return o.get_ptr();
 }
-} // namespace OPTIONAL_NAMESPACE
+
+} // exported namespace OPTIONAL_NAMESPACE
 
 // [optional.hash]
 namespace std {
+
 OPTIONAL_EXPORT
 template <typename T>
-	requires
-		requires(const hash<T> & h, const T & v) { h(v); }
+	requires ::OPTIONAL_NAMESPACE::dtl::hashable_type<T>
 struct hash<::OPTIONAL_NAMESPACE::optional<T>> {
 	using argument_type = ::OPTIONAL_NAMESPACE::optional<T>;
-	using base          = hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>;
-	std::size_t operator()(const argument_type & o) const noexcept {
-		return base{}(o);
+	using result_type   = size_t;
+	size_t operator()(const argument_type & o) const noexcept {
+		return hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>{}(o);
 	}
 };
 
 OPTIONAL_EXPORT
 template <typename T>
-	requires
-		requires(const hash<T> & h, const T & v) { h(v); }
+	requires ::OPTIONAL_NAMESPACE::dtl::hashable_type<T>
 struct hash<::OPTIONAL_NAMESPACE::optional<T &>> {
 	using argument_type = ::OPTIONAL_NAMESPACE::optional<T &>;
-	using base          = hash<T>;
-	std::size_t operator()(const argument_type & o) const noexcept {
-		return o.has_value() ? base{}(*o) : 0;
+	using result_type   = size_t;
+	size_t operator()(const argument_type & o) const noexcept {
+		return o.has_value() ? hash<T>{}(*o) : 0;
 	}
 };
+
 } // namespace std
 
 #undef OPTIONAL_THREE_WAY
@@ -1074,6 +1079,10 @@ struct hash<::OPTIONAL_NAMESPACE::optional<T &>> {
 #undef OPTIONAL_BASE_OPTIONAL
 
 #endif // OPTIONAL_NAMED_MODULE_PURVIEW
+
+#if defined(OPTIONAL_NAMED_MODULE) && !defined(OPTIONAL_NAMED_MODULE_PURVIEW)
+#define OPTIONAL_NAMED_MODULE_PURVIEW
+#endif
 
 #undef OPTIONAL_EXPORT
 #undef OPTIONAL_NOEXPORT_BEGIN
