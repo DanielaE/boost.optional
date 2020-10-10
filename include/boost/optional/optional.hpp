@@ -1,4 +1,10 @@
-﻿#ifndef OPTIONAL_NAMED_MODULE
+// Copyright (C) 2020, Daniela Engert
+//
+// Use, modification, and distribution is subject to the Boost Software
+// License, Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+//
+#ifndef OPTIONAL_NAMED_MODULE
 #pragma once
 
 #define OPTIONAL_EXPORT
@@ -87,6 +93,11 @@ struct none_t : std::nullopt_t {
 inline constexpr none_t none{ std::nullopt };
 #endif
 
+// [optional.nullopt]
+using nullopt_t = std::nullopt_t;
+inline constexpr nullopt_t nullopt{ std::nullopt };
+
+// [optional.bad.access]
 using bad_optional_access = std::bad_optional_access;
 
 } // exported namespace OPTIONAL_NAMESPACE
@@ -128,9 +139,6 @@ concept compatible_optional_type =
 	 std::is_convertible_v<const dtl::base_optional<U> &, T> ||
 	 std::is_convertible_v<const dtl::base_optional<U>, T> ||
 	 std::is_convertible_v<dtl::base_optional<U>, T>);
-
-template <typename T>
-concept hashable_type = requires(const std::hash<T> & h, const T & v) { h(v); };
 
 template <typename T>
 using unwrap_t = std::conditional_t<optional_type<T>,
@@ -261,6 +269,7 @@ OPTIONAL_NOEXPORT_END
 
 OPTIONAL_EXPORT namespace OPTIONAL_NAMESPACE {
 
+// [optional.optional]
 template <typename T>
 class optional : public dtl::base_optional<T> {
 	using base = dtl::base_optional<T>;
@@ -288,7 +297,9 @@ class optional : public dtl::base_optional<T> {
 	}
 
 public:
-	//[optional.object.ctor]
+	using value_type = T;
+
+	// [optional.object.ctor]
 	[[nodiscard]] constexpr optional() noexcept = default;
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {};
 
@@ -328,7 +339,7 @@ public:
 	[[nodiscard]] explicit(!std::is_convertible_v<U, T>)
 	optional(dtl::base_optional<U> && other) : base{ static_cast<dtl::base_optional<U> &&>(other) } {}
 
-	// assignment
+	// [optional.assign]
 	optional & operator=(std::nullopt_t) noexcept {
 		return static_cast<optional &>(base::operator=(std::nullopt));
 	}
@@ -376,7 +387,6 @@ public:
 
 	// non-standard additional Boost interfaces
 
-	using value_type           = T;
 	using reference_type       = T &;
 	using reference_const_type = const T &;
 	using rval_reference_type  = T &&;
@@ -544,7 +554,9 @@ class optional<T &> {
 	T * p_ = nullptr;
 
 public:
-	// construction
+	using value_type = T &;
+
+	// [optional.object.ctor]
 	[[nodiscard]] constexpr optional() noexcept = default;
 	[[nodiscard]] constexpr optional(none_t) noexcept {}
 	[[nodiscard]] constexpr optional(std::nullopt_t) noexcept {}
@@ -565,7 +577,7 @@ public:
 		taint_rvalue<U>{};
 	}
 
-	// assignment
+	// [optional.assign]
 	constexpr optional & operator=(const optional & rhs) noexcept = default;
 	constexpr optional & operator=(optional && rhs) noexcept = default;
 
@@ -588,20 +600,6 @@ public:
 		return *this;
 	}
 
-	// observers
-	constexpr T * operator->() const noexcept { return p_; }
-	constexpr T & operator*() const { return *p_; }
-	[[nodiscard]] constexpr T & value() const {
-		return p_ ? *p_ : throw bad_optional_access();
-	}
-	[[nodiscard]] constexpr bool has_value() const noexcept { return p_ != nullptr; }
-	constexpr explicit operator bool() const noexcept { return p_ != nullptr; }
-
-	// modifiers
-	constexpr void swap(optional & rhs) noexcept { std::swap(p_, rhs.p_); }
-
-	constexpr void reset() noexcept { p_ = nullptr; }
-
 	template <typename U>
 		requires (!dtl::optional_related<U>)
 	constexpr void emplace(U && rhs) noexcept {
@@ -609,9 +607,30 @@ public:
 		taint_rvalue<U>{};
 	}
 
+	// [optional.observe]
+	constexpr T * operator->() const noexcept { return p_; }
+	constexpr T & operator*() const { return *p_; }
+	[[nodiscard]] constexpr explicit operator bool() const noexcept { return p_ != nullptr; }
+	[[nodiscard]] constexpr bool has_value() const noexcept { return p_ != nullptr; }
+
+	[[nodiscard]] constexpr T & value() const {
+		return p_ ? *p_ : throw bad_optional_access();
+	}
+	template <typename U>
+		requires (!dtl::optional_type<U>)
+	[[nodiscard]] constexpr T & value_or(U && replacement) const noexcept {
+		taint_rvalue<U>{};
+		return p_ ? *p_ : replacement;
+	}
+
+	// [optional.swap]
+	constexpr void swap(optional & rhs) noexcept { std::swap(p_, rhs.p_); }
+
+	// [optional.mod]
+	constexpr void reset() noexcept { p_ = nullptr; }
+
 	// non-standard additional Boost interfaces
 
-	using value_type           = T &;
 	using reference_type       = T &;
 	using reference_const_type = T &;
 	using rval_reference_type  = T &;
@@ -647,13 +666,6 @@ public:
 		return none;
 	}
 
-	template <typename U>
-		requires (!dtl::optional_type<U>)
-	[[nodiscard]] constexpr T & value_or(U && replacement) const noexcept {
-		taint_rvalue<U>{};
-		return p_ ? *p_ : replacement;
-	}
-
 	template <typename Func>
 	[[nodiscard]] T & value_or_eval(Func f) const {
 		taint_rvalue<std::invoke_result_t<Func>>{};
@@ -684,7 +696,6 @@ public:
 }; // class optional<T &>
 
 // [optional.relops]
-
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator==(const optional<T> & lhs, const optional<U> & rhs) {
 	const bool lhv = lhs.has_value();
@@ -849,7 +860,6 @@ template <typename T>
 }
 
 // [optional.comp_with_t]
-
 template <typename T, typename U>
 	requires (dtl::eq_comparable<T, U> || dtl::ne_comparable<T, U>) &&
 	         (!dtl::optional_related<U>)
@@ -1050,23 +1060,28 @@ namespace std {
 
 OPTIONAL_EXPORT
 template <typename T>
-	requires ::OPTIONAL_NAMESPACE::dtl::hashable_type<T>
+	requires is_default_constructible_v<
+		hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>>
 struct hash<::OPTIONAL_NAMESPACE::optional<T>> {
-	using argument_type = ::OPTIONAL_NAMESPACE::optional<T>;
-	using result_type   = size_t;
-	size_t operator()(const argument_type & o) const noexcept {
-		return hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>{}(o);
+	using argument_type OPTIONAL_DEPRECATED = ::OPTIONAL_NAMESPACE::optional<T>;
+	using result_type OPTIONAL_DEPRECATED   = size_t;
+	using _h = hash<::OPTIONAL_NAMESPACE::dtl::base_optional<T>>;
+	[[nodiscard]] size_t operator()(const ::OPTIONAL_NAMESPACE::optional<T> & o) const noexcept(
+		noexcept(_h{}(o))) {
+		return _h{}(o);
 	}
 };
 
 OPTIONAL_EXPORT
 template <typename T>
-	requires ::OPTIONAL_NAMESPACE::dtl::hashable_type<T>
+	requires is_default_constructible_v<hash<remove_const_t<T>>>
 struct hash<::OPTIONAL_NAMESPACE::optional<T &>> {
-	using argument_type = ::OPTIONAL_NAMESPACE::optional<T &>;
-	using result_type   = size_t;
-	size_t operator()(const argument_type & o) const noexcept {
-		return o.has_value() ? hash<T>{}(*o) : 0;
+	using argument_type OPTIONAL_DEPRECATED = ::OPTIONAL_NAMESPACE::optional<T &>;
+	using result_type OPTIONAL_DEPRECATED   = size_t;
+	using _h = hash<remove_const_t<T>>;
+	[[nodiscard]] size_t operator()(const ::OPTIONAL_NAMESPACE::optional<T &> & o) const noexcept(
+		noexcept(_h{}(declval<const remove_const_t<T> &>()))) {
+		return o.has_value() ? _h{}(*o) : 0;
 	}
 };
 
